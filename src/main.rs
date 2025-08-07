@@ -1,5 +1,26 @@
+/*!
+ * GeoParquet Batch Writer with Trait-Based Architecture
+ *
+ * This module provides a flexible, trait-based system for writing GeoParquet files with automatic batching.
+ *
+ * Key Features:
+ * - `GeoParquetRowData` trait allows any struct to be written to GeoParquet
+ * - Automatic memory-based batching to handle large datasets efficiently
+ * - Type-safe schema generation and array conversion
+ * - Examples include simple `Row` and enriched `EnrichedRow` structures
+ *
+ * Usage:
+ * 1. Implement `GeoParquetRowData` for your struct
+ * 2. Create a `GeoParquetBatchWriter<YourStruct>`
+ * 3. Add rows using `add_row()` or `add_rows()`
+ * 4. Call `finish()` to flush and close the file
+ *
+ * The writer automatically handles batching based on memory usage, ensuring
+ * consistent performance even with large datasets.
+ */
+
 use anyhow::{Result, anyhow};
-use arrow_array::{Array, Int64Array, RecordBatch};
+use arrow_array::{Array, RecordBatch, UInt64Array};
 use arrow_schema::{DataType, Field, Schema};
 use clap::Parser;
 use geo::{Point, point};
@@ -9,10 +30,107 @@ use geoarrow_schema::{Dimension, PointType};
 use geoparquet::writer::GeoParquetRecordBatchEncoder;
 use parquet::arrow::arrow_writer::ArrowWriter;
 use rand::{Rng, thread_rng};
-use std::collections::HashMap;
 use std::fs::File;
 use std::path::Path;
 use std::sync::Arc;
+
+/// Trait for data that can be written to GeoParquet files
+pub trait GeoParquetRowData: Clone + Send + Sync {
+    /// Get the Arrow schema for this row type
+    fn schema() -> Arc<Schema>;
+
+    /// Convert a batch of rows into Arrow arrays
+    /// The arrays must be in the same order as the schema fields
+    fn to_arrays(rows: &[Self]) -> Result<Vec<Arc<dyn Array>>>;
+
+    /// Estimated memory size per row (used for batching decisions)
+    fn estimated_row_memory_size() -> usize;
+}
+
+/// Example row structure with ID and geometry
+#[derive(Debug, Clone)]
+pub struct Row {
+    pub id: u64,
+    pub geometry: Point<f64>,
+}
+
+impl GeoParquetRowData for Row {
+    fn schema() -> Arc<Schema> {
+        let point_type = PointType::new(Dimension::XY, Default::default());
+        Arc::new(Schema::new(vec![
+            Field::new("id", DataType::UInt64, false),
+            point_type.to_field("geometry", false),
+        ]))
+    }
+
+    fn to_arrays(rows: &[Self]) -> Result<Vec<Arc<dyn Array>>> {
+        // Build ID array
+        let id_array = Arc::new(UInt64Array::from_iter(rows.iter().map(|row| row.id)));
+
+        // Build geometry array
+        let point_type = PointType::new(Dimension::XY, Default::default());
+        let mut geom_builder = PointBuilder::new(point_type);
+        for row in rows {
+            geom_builder.push_point(Some(&point!(x: row.geometry.x(), y: row.geometry.y())));
+        }
+        let geom_array = Arc::new(geom_builder.finish().into_array_ref());
+
+        Ok(vec![id_array, geom_array])
+    }
+
+    fn estimated_row_memory_size() -> usize {
+        // Rough estimate: 8 bytes for u64 + ~32 bytes for Point coordinates and overhead
+        40
+    }
+}
+
+/// Example of a more complex row structure with additional attributes
+#[derive(Debug, Clone)]
+pub struct EnrichedRow {
+    pub id: u64,
+    pub geometry: Point<f64>,
+    pub name: String,
+    pub value: f64,
+}
+
+impl GeoParquetRowData for EnrichedRow {
+    fn schema() -> Arc<Schema> {
+        let point_type = PointType::new(Dimension::XY, Default::default());
+        Arc::new(Schema::new(vec![
+            Field::new("id", DataType::UInt64, false),
+            point_type.to_field("geometry", false),
+            Field::new("name", DataType::Utf8, false),
+            Field::new("value", DataType::Float64, false),
+        ]))
+    }
+
+    fn to_arrays(rows: &[Self]) -> Result<Vec<Arc<dyn Array>>> {
+        use arrow_array::{Float64Array, StringArray};
+
+        // Build arrays for each field
+        let id_array = Arc::new(UInt64Array::from_iter(rows.iter().map(|row| row.id)));
+
+        let point_type = PointType::new(Dimension::XY, Default::default());
+        let mut geom_builder = PointBuilder::new(point_type);
+        for row in rows {
+            geom_builder.push_point(Some(&point!(x: row.geometry.x(), y: row.geometry.y())));
+        }
+        let geom_array = Arc::new(geom_builder.finish().into_array_ref());
+
+        let name_array = Arc::new(StringArray::from_iter_values(
+            rows.iter().map(|row| &row.name),
+        ));
+
+        let value_array = Arc::new(Float64Array::from_iter(rows.iter().map(|row| row.value)));
+
+        Ok(vec![id_array, geom_array, name_array, value_array])
+    }
+
+    fn estimated_row_memory_size() -> usize {
+        // Rough estimate: 8 bytes for u64 + ~32 bytes for Point + ~50 bytes for String + 8 bytes for f64
+        98
+    }
+}
 
 /// Configuration for batch processing
 #[derive(Debug, Clone)]
@@ -33,26 +151,19 @@ impl Default for BatchConfig {
 }
 
 /// A batch writer for GeoParquet files that handles memory-based batching automatically
-pub struct GeoParquetBatchWriter {
+pub struct GeoParquetBatchWriter<T: GeoParquetRowData> {
     encoder: GeoParquetRecordBatchEncoder,
     writer: ArrowWriter<File>,
     schema: Arc<Schema>,
-    point_type: PointType,
     config: BatchConfig,
-    current_batch: Vec<Point<f64>>,
-    current_batch_start_id: i64,
+    current_batch: Vec<T>,
     batch_num: usize,
 }
 
-impl GeoParquetBatchWriter {
+impl<T: GeoParquetRowData> GeoParquetBatchWriter<T> {
     /// Create a new GeoParquetBatchWriter
     pub fn new(output_path: &str, config: BatchConfig) -> Result<Self> {
-        let point_type = PointType::new(Dimension::XY, Default::default());
-        let schema = Arc::new(Schema::new(vec![
-            Field::new("id", DataType::Int64, false),
-            point_type.to_field("geometry", false),
-        ]));
-
+        let schema = T::schema();
         let encoder = GeoParquetRecordBatchEncoder::try_new(&schema, &Default::default())?;
         let writer =
             ArrowWriter::try_new(File::create(output_path)?, encoder.target_schema(), None)?;
@@ -61,17 +172,15 @@ impl GeoParquetBatchWriter {
             encoder,
             writer,
             schema,
-            point_type,
             config,
             current_batch: Vec::new(),
-            current_batch_start_id: 0,
             batch_num: 0,
         })
     }
 
-    /// Add a single point to the batch writer
-    pub fn add_point(&mut self, point: Point<f64>) -> Result<()> {
-        self.current_batch.push(point);
+    /// Add a single row to the batch writer
+    pub fn add_row(&mut self, row: T) -> Result<()> {
+        self.current_batch.push(row);
 
         // Check if we should evaluate memory usage
         if self.current_batch.len() % self.config.check_interval == 0 {
@@ -81,10 +190,10 @@ impl GeoParquetBatchWriter {
         Ok(())
     }
 
-    /// Add multiple points to the batch writer
-    pub fn add_points(&mut self, points: &[Point<f64>]) -> Result<()> {
-        for point in points {
-            self.add_point(*point)?;
+    /// Add multiple rows to the batch writer
+    pub fn add_rows(&mut self, rows: &[T]) -> Result<()> {
+        for row in rows {
+            self.add_row(row.clone())?;
         }
         Ok(())
     }
@@ -96,25 +205,17 @@ impl GeoParquetBatchWriter {
         }
 
         // Build arrays to check memory size
-        let id_array = Arc::new(Int64Array::from_iter(
-            self.current_batch
-                .iter()
-                .enumerate()
-                .map(|(i, _)| (self.current_batch_start_id + i as i64)),
-        ));
-
-        let mut geom_builder = PointBuilder::new(self.point_type.clone());
-        for point in &self.current_batch {
-            geom_builder.push_point(Some(&point!(x: point.x(), y: point.y())));
-        }
-        let geom_array = Arc::new(geom_builder.finish().into_array_ref());
+        let arrays = T::to_arrays(&self.current_batch)?;
 
         // Calculate total memory size
-        let memory_size = id_array.get_array_memory_size() + geom_array.get_array_memory_size();
+        let memory_size: usize = arrays
+            .iter()
+            .map(|array| array.get_array_memory_size())
+            .sum();
 
         // Write batch if memory threshold exceeded
         if memory_size > self.config.memory_threshold {
-            self.write_current_batch_with_arrays(id_array, geom_array, memory_size)?;
+            self.write_current_batch_with_arrays(arrays, memory_size)?;
         }
 
         Ok(())
@@ -123,48 +224,38 @@ impl GeoParquetBatchWriter {
     /// Write the current batch using pre-built arrays
     fn write_current_batch_with_arrays(
         &mut self,
-        id_array: Arc<Int64Array>,
-        geom_array: Arc<dyn Array>,
+        arrays: Vec<Arc<dyn Array>>,
         memory_size: usize,
     ) -> Result<()> {
         self.batch_num += 1;
         println!(
-            "Processing batch {} ({} points, {} bytes)",
+            "Processing batch {} ({} rows, {} bytes)",
             self.batch_num,
             self.current_batch.len(),
             memory_size
         );
 
-        let batch = RecordBatch::try_new(self.schema.clone(), vec![id_array, geom_array])?;
+        let batch = RecordBatch::try_new(self.schema.clone(), arrays)?;
         let encoded_batch = self.encoder.encode_record_batch(&batch)?;
         self.writer.write(&encoded_batch)?;
 
         // Update state for next batch
-        self.current_batch_start_id += self.current_batch.len() as i64;
         self.current_batch.clear();
 
         Ok(())
     }
 
-    /// Flush any remaining points in the current batch
+    /// Flush any remaining rows in the current batch
     pub fn flush(&mut self) -> Result<()> {
         if !self.current_batch.is_empty() {
-            // Build arrays for remaining points
-            let id_array = Arc::new(Int64Array::from_iter(
-                self.current_batch
-                    .iter()
-                    .enumerate()
-                    .map(|(i, _)| (self.current_batch_start_id + i as i64)),
-            ));
+            // Build arrays for remaining rows
+            let arrays = T::to_arrays(&self.current_batch)?;
+            let memory_size: usize = arrays
+                .iter()
+                .map(|array| array.get_array_memory_size())
+                .sum();
 
-            let mut geom_builder = PointBuilder::new(self.point_type.clone());
-            for point in &self.current_batch {
-                geom_builder.push_point(Some(&point!(x: point.x(), y: point.y())));
-            }
-            let geom_array = Arc::new(geom_builder.finish().into_array_ref());
-
-            let memory_size = id_array.get_array_memory_size() + geom_array.get_array_memory_size();
-            self.write_current_batch_with_arrays(id_array, geom_array, memory_size)?;
+            self.write_current_batch_with_arrays(arrays, memory_size)?;
         }
         Ok(())
     }
@@ -212,6 +303,10 @@ struct Cli {
     /// Add random attributes to the points
     #[arg(short, long)]
     attributes: bool,
+
+    /// Use enriched row format with additional fields
+    #[arg(short, long)]
+    enriched: bool,
 }
 
 fn parse_bbox(bbox_str: &str) -> Result<(f64, f64, f64, f64)> {
@@ -240,41 +335,6 @@ fn generate_random_points(count: usize, bbox: (f64, f64, f64, f64)) -> Vec<Point
         .collect()
 }
 
-fn generate_random_attributes(count: usize) -> Vec<HashMap<String, String>> {
-    let mut rng = thread_rng();
-    let cities = vec![
-        "New York",
-        "Los Angeles",
-        "Chicago",
-        "Houston",
-        "Phoenix",
-        "Philadelphia",
-        "San Antonio",
-        "San Diego",
-        "Dallas",
-        "San Jose",
-    ];
-    let categories = vec!["Restaurant", "Park", "School", "Hospital", "Store"];
-
-    (0..count)
-        .map(|i| {
-            let mut attrs = HashMap::new();
-            attrs.insert("id".to_string(), i.to_string());
-            attrs.insert("name".to_string(), format!("Point_{}", i));
-            attrs.insert(
-                "city".to_string(),
-                cities[rng.gen_range(0..cities.len())].to_string(),
-            );
-            attrs.insert(
-                "category".to_string(),
-                categories[rng.gen_range(0..categories.len())].to_string(),
-            );
-            attrs.insert("value".to_string(), rng.gen_range(1..=100).to_string());
-            attrs
-        })
-        .collect()
-}
-
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
@@ -288,33 +348,9 @@ fn main() -> Result<()> {
     // Generate random points
     let points = generate_random_points(cli.count, bbox);
 
-    // Generate attributes if requested
-    let attributes = if cli.attributes {
-        Some(generate_random_attributes(cli.count))
-    } else {
-        None
-    };
-
     // Create output directory if it doesn't exist
     if let Some(parent) = Path::new(&cli.output).parent() {
         std::fs::create_dir_all(parent)?;
-    }
-
-    // For now, let's create a simple CSV-like structure that we can convert
-    // Since geoparquet crate usage might be complex, let's first show the data generation
-    println!("Generated {} points", points.len());
-
-    if let Some(ref attrs) = attributes {
-        println!("Sample point with attributes:");
-        if let (Some(point), Some(attr)) = (points.first(), attrs.first()) {
-            println!("  Point: ({}, {})", point.x(), point.y());
-            println!("  Attributes: {:?}", attr);
-        }
-    } else {
-        println!("Sample points (first 5):");
-        for (i, point) in points.iter().take(5).enumerate() {
-            println!("  Point {}: ({}, {})", i, point.x(), point.y());
-        }
     }
 
     // Create batch writer with custom configuration
@@ -323,15 +359,48 @@ fn main() -> Result<()> {
         memory_threshold: 100 * 1024, // 100KB threshold
     };
 
-    let mut writer = GeoParquetBatchWriter::new(&cli.output, batch_config)?;
+    if cli.enriched {
+        // Use enriched row format
+        let mut writer: GeoParquetBatchWriter<EnrichedRow> =
+            GeoParquetBatchWriter::new(&cli.output, batch_config)?;
 
-    // Add all points to the writer (batching is handled internally)
-    writer.add_points(&points)?;
+        let names = vec!["Restaurant", "Park", "School", "Hospital", "Store"];
+        let mut rng = thread_rng();
 
-    // Finish writing (this flushes any remaining data)
-    writer.finish()?;
+        for (i, point) in points.iter().enumerate() {
+            let row = EnrichedRow {
+                id: i as u64,
+                geometry: *point,
+                name: format!("{} #{}", names[i % names.len()], i),
+                value: rng.gen_range(0.0..100.0),
+            };
+            writer.add_row(row)?;
+        }
 
-    println!("Successfully wrote {} points to {}", cli.count, cli.output);
+        writer.finish()?;
+        println!(
+            "Successfully wrote {} enriched rows to {}",
+            cli.count, cli.output
+        );
+    } else {
+        // Use simple row format
+        let mut writer: GeoParquetBatchWriter<Row> =
+            GeoParquetBatchWriter::new(&cli.output, batch_config)?;
+
+        for (i, point) in points.iter().enumerate() {
+            let row = Row {
+                id: i as u64,
+                geometry: *point,
+            };
+            writer.add_row(row)?;
+        }
+
+        writer.finish()?;
+        println!(
+            "Successfully wrote {} simple rows to {}",
+            cli.count, cli.output
+        );
+    }
 
     Ok(())
 }
