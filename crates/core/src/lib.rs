@@ -1,6 +1,6 @@
+use anyhow::Result;
 use arrow_array::{Array, RecordBatch};
 use arrow_schema::Schema;
-use anyhow::Result;
 use geoparquet::writer::GeoParquetRecordBatchEncoder;
 use parquet::arrow::ArrowWriter;
 use std::{fs::File, sync::Arc};
@@ -10,17 +10,14 @@ pub use geoparquet_batch_writer_derive::GeoParquetRowData;
 /// Configuration for batch processing
 #[derive(Debug, Clone)]
 pub struct BatchConfig {
-    /// Number of rows to accumulate before checking memory usage
-    pub check_interval: usize,
-    /// Memory threshold in bytes - batch will be written when exceeded
-    pub memory_threshold: usize,
+    /// Maximum number of rows per batch. When reached, the batch is written.
+    pub max_rows_per_batch: usize,
 }
 
 impl Default for BatchConfig {
     fn default() -> Self {
         Self {
-            check_interval: 1000,         // Check memory every 1000 items
-            memory_threshold: 100 * 1024, // 100KB threshold
+            max_rows_per_batch: 10_000, // Default to 10k rows per batch
         }
     }
 }
@@ -33,9 +30,6 @@ pub trait GeoParquetRowData: Clone + Send + Sync {
     /// Convert a batch of rows into Arrow arrays
     /// The arrays must be in the same order as the schema fields
     fn to_arrays(rows: &[Self]) -> Result<Vec<Arc<dyn Array>>>;
-
-    /// Estimated memory size per row (used optionally for batching decisions)
-    fn estimated_row_memory_size() -> usize { 0 }
 }
 
 /// A batch writer for GeoParquet files that handles memory-based batching automatically
@@ -70,9 +64,9 @@ impl<T: GeoParquetRowData> GeoParquetBatchWriter<T> {
     pub fn add_row(&mut self, row: T) -> Result<()> {
         self.current_batch.push(row);
 
-        // Check if we should evaluate memory usage
-        if self.current_batch.len() % self.config.check_interval == 0 {
-            self.check_and_write_if_needed()?;
+        // If we've reached the max batch size, write the batch
+        if self.current_batch.len() >= self.config.max_rows_per_batch {
+            self.write_current_batch()?;
         }
 
         Ok(())
@@ -86,41 +80,19 @@ impl<T: GeoParquetRowData> GeoParquetBatchWriter<T> {
         Ok(())
     }
 
-    /// Check current memory usage and write batch if threshold is exceeded
-    fn check_and_write_if_needed(&mut self) -> Result<()> {
+    /// Write the current batch
+    fn write_current_batch(&mut self) -> Result<()> {
         if self.current_batch.is_empty() {
             return Ok(());
         }
 
-        // Build arrays to check memory size
+        // Build arrays for current rows
         let arrays = T::to_arrays(&self.current_batch)?;
-
-        // Calculate total memory size
-        let memory_size: usize = arrays
-            .iter()
-            .map(|array| array.get_array_memory_size())
-            .sum();
-
-        // Write batch if memory threshold exceeded
-        if memory_size > self.config.memory_threshold {
-            self.write_current_batch_with_arrays(arrays, memory_size)?;
-        }
-
-        Ok(())
-    }
-
-    /// Write the current batch using pre-built arrays
-    fn write_current_batch_with_arrays(
-        &mut self,
-        arrays: Vec<Arc<dyn Array>>,
-        memory_size: usize,
-    ) -> Result<()> {
         self.batch_num += 1;
         println!(
-            "Processing batch {} ({} rows, {} bytes)",
+            "Processing batch {} ({} rows)",
             self.batch_num,
-            self.current_batch.len(),
-            memory_size
+            self.current_batch.len()
         );
 
         let batch = RecordBatch::try_new(self.schema.clone(), arrays)?;
@@ -136,14 +108,7 @@ impl<T: GeoParquetRowData> GeoParquetBatchWriter<T> {
     /// Flush any remaining rows in the current batch
     pub fn flush(&mut self) -> Result<()> {
         if !self.current_batch.is_empty() {
-            // Build arrays for remaining rows
-            let arrays = T::to_arrays(&self.current_batch)?;
-            let memory_size: usize = arrays
-                .iter()
-                .map(|array| array.get_array_memory_size())
-                .sum();
-
-            self.write_current_batch_with_arrays(arrays, memory_size)?;
+            self.write_current_batch()?;
         }
         Ok(())
     }

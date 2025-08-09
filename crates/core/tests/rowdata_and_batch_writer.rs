@@ -155,14 +155,13 @@ fn different_geometries_basic_arrays() -> Result<()> {
 }
 
 #[test]
-fn batch_writer_writes_batches_by_memory_threshold() -> Result<()> {
+fn batch_writer_writes_batches_by_row_count() -> Result<()> {
     let out = tmp_file("points_batch");
     let mut writer: GeoParquetBatchWriter<RowPoint> = GeoParquetBatchWriter::new(
         out.path.to_str().unwrap(),
         BatchConfig {
-            check_interval: 1,
-            memory_threshold: 1,
-        }, // trigger frequent checks
+            max_rows_per_batch: 3,
+        }, // trigger frequent writes
     )?;
 
     for i in 0..10u64 {
@@ -188,8 +187,7 @@ fn batch_writer_handles_varied_structs() -> Result<()> {
     let mut w1: GeoParquetBatchWriter<RowLineString> = GeoParquetBatchWriter::new(
         out1.path.to_str().unwrap(),
         BatchConfig {
-            check_interval: 2,
-            memory_threshold: 1024,
+            max_rows_per_batch: 2,
         },
     )?;
     w1.add_row(RowLineString {
@@ -219,8 +217,7 @@ fn batch_writer_handles_varied_structs() -> Result<()> {
     let mut w3: GeoParquetBatchWriter<RowGeometryEnum> = GeoParquetBatchWriter::new(
         out3.path.to_str().unwrap(),
         BatchConfig {
-            check_interval: 1,
-            memory_threshold: 1,
+            max_rows_per_batch: 1,
         },
     )?;
     w3.add_row(RowGeometryEnum {

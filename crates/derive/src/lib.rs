@@ -147,7 +147,6 @@ fn impl_geoparquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
     // Generate schema fields & array builders
     let mut schema_field_tokens = Vec::new();
     let mut array_expr_tokens = Vec::new();
-    let mut mem_est_addends = Vec::new();
 
     // geometry shared setup (Type depends on geometry kind)
     let geom_type_ident = format_ident!("__gp_geom_type");
@@ -287,15 +286,12 @@ fn impl_geoparquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
                 #arr_ident
             }});
 
-            // Memory estimate: rough average per geometry
-            mem_est_addends.push(quote!(64usize));
-
             // Initialize the appropriate GeoArrow schema type with requested dim
             geometry_init_tokens = Some(geom_setup_tokens(kind, fi.dim.as_deref()));
         } else {
             // Scalar or String
             let dt = arrow_datatype(&fi.ty)?;
-            let (array_ty, from_tokens, mem_bytes) = array_ctor(&fi.ty, fi.is_option)?;
+            let (array_ty, from_tokens) = array_ctor(&fi.ty, fi.is_option)?;
             let col_name_lit = syn::LitStr::new(&fi.col_name, fi.ident.span());
             let is_option = fi.is_option;
             schema_field_tokens.push(quote! {
@@ -312,8 +308,6 @@ fn impl_geoparquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
                 let #arr_ident: ::std::sync::Arc<dyn ::arrow_array::Array> = arr;
                 #arr_ident
             }});
-
-            mem_est_addends.push(quote!(#mem_bytes));
         }
     }
 
@@ -335,10 +329,6 @@ fn impl_geoparquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
         }
     };
 
-    let mem_sum_tokens = quote! {{
-        0usize #(+ #mem_est_addends)*
-    }};
-
     let expanded = quote! {
         impl ::geoparquet_batch_writer::GeoParquetRowData for #struct_ident
         where Self: Clone + Send + Sync
@@ -349,10 +339,6 @@ fn impl_geoparquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
 
             fn to_arrays(rows: &[Self]) -> ::anyhow::Result<Vec<::std::sync::Arc<dyn ::arrow_array::Array>>> {
                 #arrays_vec_tokens
-            }
-
-            fn estimated_row_memory_size() -> usize {
-                #mem_sum_tokens
             }
         }
     };
@@ -426,61 +412,48 @@ fn arrow_datatype(ty: &Type) -> syn::Result<proc_macro2::TokenStream> {
 fn array_ctor(
     ty: &Type,
     is_option: bool,
-) -> syn::Result<(
-    proc_macro2::TokenStream,
-    proc_macro2::TokenStream,
-    proc_macro2::TokenStream,
-)> {
+) -> syn::Result<(proc_macro2::TokenStream, proc_macro2::TokenStream)> {
     let t = type_name(ty);
-    let (arr_ty, from_vals, from_opts, est): (_, _, _, proc_macro2::TokenStream) = match t.as_str()
-    {
+    let (arr_ty, from_vals, from_opts): (_, _, _) = match t.as_str() {
         "u64" => (
             quote!(::arrow_array::UInt64Array),
             quote!(::arrow_array::UInt64Array::from_iter_values(it)),
             quote!(::arrow_array::UInt64Array::from_iter(it)),
-            quote!(::std::mem::size_of::<u64>()),
         ),
         "i64" => (
             quote!(::arrow_array::Int64Array),
             quote!(::arrow_array::Int64Array::from_iter_values(it)),
             quote!(::arrow_array::Int64Array::from_iter(it)),
-            quote!(::std::mem::size_of::<i64>()),
         ),
         "u32" => (
             quote!(::arrow_array::UInt32Array),
             quote!(::arrow_array::UInt32Array::from_iter_values(it)),
             quote!(::arrow_array::UInt32Array::from_iter(it)),
-            quote!(::std::mem::size_of::<u32>()),
         ),
         "i32" => (
             quote!(::arrow_array::Int32Array),
             quote!(::arrow_array::Int32Array::from_iter_values(it)),
             quote!(::arrow_array::Int32Array::from_iter(it)),
-            quote!(::std::mem::size_of::<i32>()),
         ),
         "f64" => (
             quote!(::arrow_array::Float64Array),
             quote!(::arrow_array::Float64Array::from_iter_values(it)),
             quote!(::arrow_array::Float64Array::from_iter(it)),
-            quote!(::std::mem::size_of::<f64>()),
         ),
         "f32" => (
             quote!(::arrow_array::Float32Array),
             quote!(::arrow_array::Float32Array::from_iter_values(it)),
             quote!(::arrow_array::Float32Array::from_iter(it)),
-            quote!(::std::mem::size_of::<f32>()),
         ),
         "bool" => (
             quote!(::arrow_array::BooleanArray),
             quote!(::arrow_array::BooleanArray::from_iter_values(it)),
             quote!(::arrow_array::BooleanArray::from_iter(it)),
-            quote!(1usize),
         ),
         "String" => (
             quote!(::arrow_array::StringArray),
             quote!(::arrow_array::StringArray::from_iter_values(it)),
             quote!(::arrow_array::StringArray::from_iter(it)),
-            quote!(48usize),
         ),
         other => {
             return Err(syn::Error::new(
@@ -490,7 +463,7 @@ fn array_ctor(
         }
     };
     let from = if is_option { from_opts } else { from_vals };
-    Ok((arr_ty, quote! { ::std::sync::Arc::new(#from) }, est))
+    Ok((arr_ty, quote! { ::std::sync::Arc::new(#from) }))
 }
 
 fn value_mapper(ty: &Type, ident: &Ident, is_option: bool) -> proc_macro2::TokenStream {
