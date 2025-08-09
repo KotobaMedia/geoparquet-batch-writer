@@ -5,11 +5,11 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1"
-arrow-array = "55.2"
-arrow-schema = "55.2"
+arrow-array = "56"
+arrow-schema = "56"
 geo = "0.28"
-geoarrow-array = "0.4"
-geoarrow-schema = "0.4"
-geoparquet = "0.4"
-parquet = { version = "55.2", features = ["arrow"] }
+geoarrow-array = "0.5"
+geoarrow-schema = "0.5"
+geoparquet = "0.5"
+parquet = { version = "56", features = ["arrow"] }
 geoparquet-batch-writer-derive = { path = "../derive" }

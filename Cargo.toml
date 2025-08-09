@@ -10,13 +10,11 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0.98"
+arrow-array = "56"
+arrow-schema = "56"
 geoparquet-batch-writer-core = { path = "crates/core" }
-arrow-schema = "55.2.0"
-arrow-array = "55.2.0"
-clap = { version = "4.5.43", features = ["derive"] }
+geoarrow-array = "0.5"
+geoarrow-schema = "0.5"
+clap = { version = "4", features = ["derive"] }
 geo = "0.30.0"
-geoarrow-array = "0.4.0"
-geoarrow-schema = "0.4.0"
-geoparquet = "0.4.0"
-parquet = "55.2.0"
 rand = "0.8"
