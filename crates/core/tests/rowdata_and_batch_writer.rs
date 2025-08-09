@@ -2,7 +2,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use anyhow::Result;
-use geo::{Geometry, LineString, MultiLineString, MultiPoint, MultiPolygon, Point, Polygon};
+use geo_types::{Geometry, LineString, MultiLineString, MultiPoint, MultiPolygon, Point, Polygon};
 use geoparquet_batch_writer::{BatchConfig, GeoParquetBatchWriter, GeoParquetRowData};
 
 #[derive(Clone, GeoParquetRowData)]

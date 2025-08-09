@@ -1,6 +1,6 @@
 use anyhow::{Ok, Result, anyhow};
 use clap::Parser;
-use geo::Point;
+use geo_types::Point;
 use geoparquet_batch_writer::{GeoParquetBatchWriter, GeoParquetRowData};
 use rand::prelude::*;
 use std::path::{Path, PathBuf};

@@ -8,6 +8,17 @@ use parquet::arrow::ArrowWriter;
 
 pub use geoparquet_batch_writer_derive::GeoParquetRowData;
 
+/// Internal re-exports used by the proc-macro expansion.
+/// This lets downstream users only depend on `geoparquet-batch-writer`.
+#[doc(hidden)]
+pub mod __dep {
+    pub use anyhow;
+    pub use arrow_array;
+    pub use arrow_schema;
+    pub use geoarrow_array;
+    pub use geoarrow_schema;
+}
+
 /// Configuration for batch processing
 #[derive(Debug, Clone)]
 pub struct BatchConfig {

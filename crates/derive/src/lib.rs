@@ -124,7 +124,7 @@ fn impl_geoparquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
     if geom_count == 0 {
         return Err(syn::Error::new(
             input.span(),
-            "No geometry field found. Mark one with #[geo(geometry)] or use a geo type like geo::Point<f64>, LineString<f64>, Polygon<f64>, MultiPoint<f64>, MultiLineString<f64>, MultiPolygon<f64>, Geometry<f64>, or GeometryCollection<f64>.",
+            "No geometry field found. Mark one with #[geo(geometry)] or use a type like geo_types::Point<f64>, LineString<f64>, Polygon<f64>, MultiPoint<f64>, MultiLineString<f64>, MultiPolygon<f64>, Geometry<f64>, or GeometryCollection<f64>.",
         ));
     }
     if geom_count > 1 {
@@ -139,7 +139,7 @@ fn impl_geoparquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
         if fi.is_geometry && fi.geom_kind.is_none() {
             return Err(syn::Error::new(
                 fi.ty.span(),
-                "Unsupported geometry type. Expected geo::Point<f64>, LineString<f64>, Polygon<f64>, MultiPoint<f64>, MultiLineString<f64>, MultiPolygon<f64>, Geometry<f64>, or GeometryCollection<f64>.",
+                "Unsupported geometry type. Expected geo_types::Point<f64>, LineString<f64>, Polygon<f64>, MultiPoint<f64>, MultiLineString<f64>, MultiPolygon<f64>, Geometry<f64>, or GeometryCollection<f64>.",
             ));
         }
     }
@@ -154,27 +154,39 @@ fn impl_geoparquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
                              dim_string: Option<&str>|
      -> proc_macro2::TokenStream {
         let dim_expr = match dim_string.unwrap_or("XY") {
-            "XYZ" => quote!(::geoarrow_schema::Dimension::XYZ),
-            "XYM" => quote!(::geoarrow_schema::Dimension::XYM),
-            _ => quote!(::geoarrow_schema::Dimension::XY),
+            "XYZ" => quote!(::geoparquet_batch_writer::__dep::geoarrow_schema::Dimension::XYZ),
+            "XYM" => quote!(::geoparquet_batch_writer::__dep::geoarrow_schema::Dimension::XYM),
+            _ => quote!(::geoparquet_batch_writer::__dep::geoarrow_schema::Dimension::XY),
         };
         let ty_ctor_two = match kind {
-            GeometryKind::Point => Some(quote!(::geoarrow_schema::PointType::new)),
-            GeometryKind::LineString => Some(quote!(::geoarrow_schema::LineStringType::new)),
-            GeometryKind::Polygon => Some(quote!(::geoarrow_schema::PolygonType::new)),
-            GeometryKind::MultiPoint => Some(quote!(::geoarrow_schema::MultiPointType::new)),
-            GeometryKind::MultiLineString => {
-                Some(quote!(::geoarrow_schema::MultiLineStringType::new))
-            }
-            GeometryKind::MultiPolygon => Some(quote!(::geoarrow_schema::MultiPolygonType::new)),
+            GeometryKind::Point => Some(quote!(
+                ::geoparquet_batch_writer::__dep::geoarrow_schema::PointType::new
+            )),
+            GeometryKind::LineString => Some(quote!(
+                ::geoparquet_batch_writer::__dep::geoarrow_schema::LineStringType::new
+            )),
+            GeometryKind::Polygon => Some(quote!(
+                ::geoparquet_batch_writer::__dep::geoarrow_schema::PolygonType::new
+            )),
+            GeometryKind::MultiPoint => Some(quote!(
+                ::geoparquet_batch_writer::__dep::geoarrow_schema::MultiPointType::new
+            )),
+            GeometryKind::MultiLineString => Some(quote!(
+                ::geoparquet_batch_writer::__dep::geoarrow_schema::MultiLineStringType::new
+            )),
+            GeometryKind::MultiPolygon => Some(quote!(
+                ::geoparquet_batch_writer::__dep::geoarrow_schema::MultiPolygonType::new
+            )),
             GeometryKind::Geometry => None,
             GeometryKind::GeometryCollection => None,
         };
         let one_arg_ctor = match kind {
-            GeometryKind::Geometry => Some(quote!(::geoarrow_schema::GeometryType::new)),
-            GeometryKind::GeometryCollection => {
-                Some(quote!(::geoarrow_schema::GeometryCollectionType::new))
-            }
+            GeometryKind::Geometry => Some(quote!(
+                ::geoparquet_batch_writer::__dep::geoarrow_schema::GeometryType::new
+            )),
+            GeometryKind::GeometryCollection => Some(quote!(
+                ::geoparquet_batch_writer::__dep::geoarrow_schema::GeometryCollectionType::new
+            )),
             _ => None,
         };
 
@@ -196,7 +208,7 @@ fn impl_geoparquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
             quote! {
                 let #geom_type_ident = {
                     let dim = #dim_expr;
-                    ::geoarrow_schema::GeometryType::new(::std::sync::Arc::new(::std::default::Default::default()))
+                    ::geoparquet_batch_writer::__dep::geoarrow_schema::GeometryType::new(::std::sync::Arc::new(::std::default::Default::default()))
                 };
             }
         }
@@ -224,35 +236,35 @@ fn impl_geoparquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
 
             let (builder_path, push_method_ident) = match kind {
                 GeometryKind::Point => (
-                    quote!(::geoarrow_array::builder::PointBuilder),
+                    quote!(::geoparquet_batch_writer::__dep::geoarrow_array::builder::PointBuilder),
                     format_ident!("push_point"),
                 ),
                 GeometryKind::LineString => (
-                    quote!(::geoarrow_array::builder::LineStringBuilder),
+                    quote!(::geoparquet_batch_writer::__dep::geoarrow_array::builder::LineStringBuilder),
                     format_ident!("push_line_string"),
                 ),
                 GeometryKind::Polygon => (
-                    quote!(::geoarrow_array::builder::PolygonBuilder),
+                    quote!(::geoparquet_batch_writer::__dep::geoarrow_array::builder::PolygonBuilder),
                     format_ident!("push_polygon"),
                 ),
                 GeometryKind::MultiPoint => (
-                    quote!(::geoarrow_array::builder::MultiPointBuilder),
+                    quote!(::geoparquet_batch_writer::__dep::geoarrow_array::builder::MultiPointBuilder),
                     format_ident!("push_multi_point"),
                 ),
                 GeometryKind::MultiLineString => (
-                    quote!(::geoarrow_array::builder::MultiLineStringBuilder),
+                    quote!(::geoparquet_batch_writer::__dep::geoarrow_array::builder::MultiLineStringBuilder),
                     format_ident!("push_multi_line_string"),
                 ),
                 GeometryKind::MultiPolygon => (
-                    quote!(::geoarrow_array::builder::MultiPolygonBuilder),
+                    quote!(::geoparquet_batch_writer::__dep::geoarrow_array::builder::MultiPolygonBuilder),
                     format_ident!("push_multi_polygon"),
                 ),
                 GeometryKind::Geometry => (
-                    quote!(::geoarrow_array::builder::GeometryBuilder),
+                    quote!(::geoparquet_batch_writer::__dep::geoarrow_array::builder::GeometryBuilder),
                     format_ident!("push_geometry"),
                 ),
                 GeometryKind::GeometryCollection => (
-                    quote!(::geoarrow_array::builder::GeometryCollectionBuilder),
+                    quote!(::geoparquet_batch_writer::__dep::geoarrow_array::builder::GeometryCollectionBuilder),
                     format_ident!("push_geometry_collection"),
                 ),
             };
@@ -279,7 +291,7 @@ fn impl_geoparquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
             };
 
             array_expr_tokens.push(quote! {{
-                use ::geoarrow_array::GeoArrowArray as _;
+                use ::geoparquet_batch_writer::__dep::geoarrow_array::GeoArrowArray as _;
                 let mut #b_ident = #builder_path::new(#geom_type_ident.clone());
                 #push_tokens
                 let #arr_ident = ::std::sync::Arc::new(#b_ident.finish().into_array_ref());
@@ -295,7 +307,7 @@ fn impl_geoparquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
             let col_name_lit = syn::LitStr::new(&fi.col_name, fi.ident.span());
             let is_option = fi.is_option;
             schema_field_tokens.push(quote! {
-                ::arrow_schema::Field::new(#col_name_lit, #dt, #is_option)
+                ::geoparquet_batch_writer::__dep::arrow_schema::Field::new(#col_name_lit, #dt, #is_option)
             });
             let arr_ident = format_ident!("__gp_arr_{}", idx);
 
@@ -305,7 +317,7 @@ fn impl_geoparquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
             array_expr_tokens.push(quote! {{
                 let it = rows.iter().map(#map_expr);
                 let arr: ::std::sync::Arc<#array_ty> = #from_tokens;
-                let #arr_ident: ::std::sync::Arc<dyn ::arrow_array::Array> = arr;
+                let #arr_ident: ::std::sync::Arc<dyn ::geoparquet_batch_writer::__dep::arrow_array::Array> = arr;
                 #arr_ident
             }});
         }
@@ -314,7 +326,7 @@ fn impl_geoparquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
     let schema_vec_tokens = quote! {
         {
             #geometry_init_tokens
-            ::std::sync::Arc::new(::arrow_schema::Schema::new(vec![
+            ::std::sync::Arc::new(::geoparquet_batch_writer::__dep::arrow_schema::Schema::new(vec![
                 #(#schema_field_tokens),*
             ]))
         }
@@ -333,11 +345,11 @@ fn impl_geoparquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
         impl ::geoparquet_batch_writer::GeoParquetRowData for #struct_ident
         where Self: Clone + Send + Sync
         {
-            fn schema() -> ::std::sync::Arc<::arrow_schema::Schema> {
+            fn schema() -> ::std::sync::Arc<::geoparquet_batch_writer::__dep::arrow_schema::Schema> {
                 #schema_vec_tokens
             }
 
-            fn to_arrays(rows: &[Self]) -> ::anyhow::Result<Vec<::std::sync::Arc<dyn ::arrow_array::Array>>> {
+            fn to_arrays(rows: &[Self]) -> ::geoparquet_batch_writer::__dep::anyhow::Result<Vec<::std::sync::Arc<dyn ::geoparquet_batch_writer::__dep::arrow_array::Array>>> {
                 #arrays_vec_tokens
             }
         }
@@ -362,7 +374,7 @@ fn option_inner(ty: &Type) -> Option<&Type> {
 }
 
 fn geometry_kind(ty: &Type) -> Option<GeometryKind> {
-    // Expect something like geo::Point<f64>, geo::LineString<f64>, etc.
+    // Expect something like geo_types::Point<f64>, geo_types::LineString<f64>, etc.
     if let Type::Path(tp) = ty {
         if let Some(seg) = tp.path.segments.last() {
             let name = seg.ident.to_string();
@@ -392,14 +404,14 @@ fn geometry_kind(ty: &Type) -> Option<GeometryKind> {
 
 fn arrow_datatype(ty: &Type) -> syn::Result<proc_macro2::TokenStream> {
     Ok(match type_name(ty).as_str() {
-        "u64" => quote!(::arrow_schema::DataType::UInt64),
-        "i64" => quote!(::arrow_schema::DataType::Int64),
-        "u32" => quote!(::arrow_schema::DataType::UInt32),
-        "i32" => quote!(::arrow_schema::DataType::Int32),
-        "f64" => quote!(::arrow_schema::DataType::Float64),
-        "f32" => quote!(::arrow_schema::DataType::Float32),
-        "bool" => quote!(::arrow_schema::DataType::Boolean),
-        "String" => quote!(::arrow_schema::DataType::Utf8),
+        "u64" => quote!(::geoparquet_batch_writer::__dep::arrow_schema::DataType::UInt64),
+        "i64" => quote!(::geoparquet_batch_writer::__dep::arrow_schema::DataType::Int64),
+        "u32" => quote!(::geoparquet_batch_writer::__dep::arrow_schema::DataType::UInt32),
+        "i32" => quote!(::geoparquet_batch_writer::__dep::arrow_schema::DataType::Int32),
+        "f64" => quote!(::geoparquet_batch_writer::__dep::arrow_schema::DataType::Float64),
+        "f32" => quote!(::geoparquet_batch_writer::__dep::arrow_schema::DataType::Float32),
+        "bool" => quote!(::geoparquet_batch_writer::__dep::arrow_schema::DataType::Boolean),
+        "String" => quote!(::geoparquet_batch_writer::__dep::arrow_schema::DataType::Utf8),
         other => {
             return Err(syn::Error::new(
                 ty.span(),
@@ -416,44 +428,56 @@ fn array_ctor(
     let t = type_name(ty);
     let (arr_ty, from_vals, from_opts): (_, _, _) = match t.as_str() {
         "u64" => (
-            quote!(::arrow_array::UInt64Array),
-            quote!(::arrow_array::UInt64Array::from_iter_values(it)),
-            quote!(::arrow_array::UInt64Array::from_iter(it)),
+            quote!(::geoparquet_batch_writer::__dep::arrow_array::UInt64Array),
+            quote!(
+                ::geoparquet_batch_writer::__dep::arrow_array::UInt64Array::from_iter_values(it)
+            ),
+            quote!(::geoparquet_batch_writer::__dep::arrow_array::UInt64Array::from_iter(it)),
         ),
         "i64" => (
-            quote!(::arrow_array::Int64Array),
-            quote!(::arrow_array::Int64Array::from_iter_values(it)),
-            quote!(::arrow_array::Int64Array::from_iter(it)),
+            quote!(::geoparquet_batch_writer::__dep::arrow_array::Int64Array),
+            quote!(::geoparquet_batch_writer::__dep::arrow_array::Int64Array::from_iter_values(it)),
+            quote!(::geoparquet_batch_writer::__dep::arrow_array::Int64Array::from_iter(it)),
         ),
         "u32" => (
-            quote!(::arrow_array::UInt32Array),
-            quote!(::arrow_array::UInt32Array::from_iter_values(it)),
-            quote!(::arrow_array::UInt32Array::from_iter(it)),
+            quote!(::geoparquet_batch_writer::__dep::arrow_array::UInt32Array),
+            quote!(
+                ::geoparquet_batch_writer::__dep::arrow_array::UInt32Array::from_iter_values(it)
+            ),
+            quote!(::geoparquet_batch_writer::__dep::arrow_array::UInt32Array::from_iter(it)),
         ),
         "i32" => (
-            quote!(::arrow_array::Int32Array),
-            quote!(::arrow_array::Int32Array::from_iter_values(it)),
-            quote!(::arrow_array::Int32Array::from_iter(it)),
+            quote!(::geoparquet_batch_writer::__dep::arrow_array::Int32Array),
+            quote!(::geoparquet_batch_writer::__dep::arrow_array::Int32Array::from_iter_values(it)),
+            quote!(::geoparquet_batch_writer::__dep::arrow_array::Int32Array::from_iter(it)),
         ),
         "f64" => (
-            quote!(::arrow_array::Float64Array),
-            quote!(::arrow_array::Float64Array::from_iter_values(it)),
-            quote!(::arrow_array::Float64Array::from_iter(it)),
+            quote!(::geoparquet_batch_writer::__dep::arrow_array::Float64Array),
+            quote!(
+                ::geoparquet_batch_writer::__dep::arrow_array::Float64Array::from_iter_values(it)
+            ),
+            quote!(::geoparquet_batch_writer::__dep::arrow_array::Float64Array::from_iter(it)),
         ),
         "f32" => (
-            quote!(::arrow_array::Float32Array),
-            quote!(::arrow_array::Float32Array::from_iter_values(it)),
-            quote!(::arrow_array::Float32Array::from_iter(it)),
+            quote!(::geoparquet_batch_writer::__dep::arrow_array::Float32Array),
+            quote!(
+                ::geoparquet_batch_writer::__dep::arrow_array::Float32Array::from_iter_values(it)
+            ),
+            quote!(::geoparquet_batch_writer::__dep::arrow_array::Float32Array::from_iter(it)),
         ),
         "bool" => (
-            quote!(::arrow_array::BooleanArray),
-            quote!(::arrow_array::BooleanArray::from_iter_values(it)),
-            quote!(::arrow_array::BooleanArray::from_iter(it)),
+            quote!(::geoparquet_batch_writer::__dep::arrow_array::BooleanArray),
+            quote!(
+                ::geoparquet_batch_writer::__dep::arrow_array::BooleanArray::from_iter_values(it)
+            ),
+            quote!(::geoparquet_batch_writer::__dep::arrow_array::BooleanArray::from_iter(it)),
         ),
         "String" => (
-            quote!(::arrow_array::StringArray),
-            quote!(::arrow_array::StringArray::from_iter_values(it)),
-            quote!(::arrow_array::StringArray::from_iter(it)),
+            quote!(::geoparquet_batch_writer::__dep::arrow_array::StringArray),
+            quote!(
+                ::geoparquet_batch_writer::__dep::arrow_array::StringArray::from_iter_values(it)
+            ),
+            quote!(::geoparquet_batch_writer::__dep::arrow_array::StringArray::from_iter(it)),
         ),
         other => {
             return Err(syn::Error::new(
