@@ -1,3 +1,8 @@
+[workspace]
+members = [
+  "crates/core", "crates/derive",
+]
+
 [package]
 name = "geoparquet-playground"
 version = "0.1.0"
@@ -5,6 +10,7 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0.98"
+geoparquet-batch-writer-core = { path = "crates/core" }
 arrow-schema = "55.2.0"
 arrow-array = "55.2.0"
 clap = { version = "4.5.43", features = ["derive"] }

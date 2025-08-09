@@ -564,6 +564,23 @@ checksum = "d9c4f5dac5e15c24eb999c26181a6ca40b39fe946cbe4c263c7209467bc83af2"
 
 [[package]]
 name = "geo"
+version = "0.28.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f811f663912a69249fa620dcd2a005db7254529da2d8a0b23942e81f47084501"
+dependencies = [
+ "earcutr",
+ "float_next_after",
+ "geo-types",
+ "geographiclib-rs",
+ "log",
+ "num-traits",
+ "robust",
+ "rstar",
+ "spade",
+]
+
+[[package]]
+name = "geo"
 version = "0.30.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4416397671d8997e9a3e7ad99714f4f00a22e9eaa9b966a5985d2194fc9e02e1"
@@ -664,6 +681,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "geoparquet-batch-writer-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "arrow-array",
+ "arrow-schema",
+ "geo 0.28.0",
+ "geoarrow-array",
+ "geoarrow-schema",
+ "geoparquet",
+ "geoparquet-batch-writer-derive",
+ "parquet",
+]
+
+[[package]]
+name = "geoparquet-batch-writer-derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "geoparquet-playground"
 version = "0.1.0"
 dependencies = [
@@ -671,10 +712,11 @@ dependencies = [
  "arrow-array",
  "arrow-schema",
  "clap",
- "geo",
+ "geo 0.30.0",
  "geoarrow-array",
  "geoarrow-schema",
  "geoparquet",
+ "geoparquet-batch-writer-core",
  "parquet",
  "rand",
 ]

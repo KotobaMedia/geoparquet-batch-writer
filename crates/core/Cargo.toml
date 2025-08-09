@@ -1,0 +1,15 @@
+[package]
+name = "geoparquet-batch-writer-core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1"
+arrow-array = "55.2"
+arrow-schema = "55.2"
+geo = "0.28"
+geoarrow-array = "0.4"
+geoarrow-schema = "0.4"
+geoparquet = "0.4"
+parquet = { version = "55.2", features = ["arrow"] }
+geoparquet-batch-writer-derive = { path = "../derive" }
