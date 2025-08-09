@@ -13,3 +13,6 @@ geoarrow-schema = "0.5"
 geoparquet = "0.5"
 parquet = { version = "56", features = ["arrow"] }
 geoparquet-batch-writer-derive = { path = "../derive" }
+
+[dev-dependencies]
+tempfile = "3"
