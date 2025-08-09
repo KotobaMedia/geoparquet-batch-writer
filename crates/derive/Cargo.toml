@@ -2,6 +2,7 @@
 name = "geoparquet-batch-writer-derive"
 version = "0.1.0"
 edition = "2024"
+publish = true
 
 [lib]
 proc-macro = true

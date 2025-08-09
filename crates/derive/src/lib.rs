@@ -340,7 +340,7 @@ fn impl_geoparquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
     }};
 
     let expanded = quote! {
-        impl ::geoparquet_batch_writer_core::GeoParquetRowData for #struct_ident
+        impl ::geoparquet_batch_writer::GeoParquetRowData for #struct_ident
         where Self: Clone + Send + Sync
         {
             fn schema() -> ::std::sync::Arc<::arrow_schema::Schema> {

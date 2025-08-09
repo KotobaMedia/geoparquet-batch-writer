@@ -1,7 +1,8 @@
 [package]
-name = "geoparquet-batch-writer-core"
+name = "geoparquet-batch-writer"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
+publish = true
 
 [dependencies]
 anyhow = "1"

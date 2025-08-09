@@ -697,7 +697,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "geoparquet-batch-writer-core"
+name = "geoparquet-batch-writer"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -713,16 +713,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "geoparquet-batch-writer-derive"
-version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "geoparquet-playground"
+name = "geoparquet-batch-writer-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -732,8 +723,17 @@ dependencies = [
  "geo 0.30.0",
  "geoarrow-array",
  "geoarrow-schema",
- "geoparquet-batch-writer-core",
+ "geoparquet-batch-writer",
  "rand",
+]
+
+[[package]]
+name = "geoparquet-batch-writer-derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]

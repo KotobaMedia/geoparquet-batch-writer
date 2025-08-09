@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use geo::{Geometry, LineString, MultiLineString, MultiPoint, MultiPolygon, Point, Polygon};
-use geoparquet_batch_writer_core::{BatchConfig, GeoParquetBatchWriter, GeoParquetRowData};
+use geoparquet_batch_writer::{BatchConfig, GeoParquetBatchWriter, GeoParquetRowData};
 
 #[derive(Clone, GeoParquetRowData)]
 struct RowPoint {
