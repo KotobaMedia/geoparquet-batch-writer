@@ -3,7 +3,7 @@ use clap::Parser;
 use geo::Point;
 use geoparquet_batch_writer::{GeoParquetBatchWriter, GeoParquetRowData};
 use rand::prelude::*;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[derive(Parser)]
 #[command(name = "geoparquet-generator")]
@@ -11,7 +11,7 @@ use std::path::Path;
 struct Cli {
     /// Output file path for the GeoParquet file
     #[arg(short, long, default_value = "output.parquet")]
-    output: String,
+    output: PathBuf,
 
     /// Number of random points to generate
     #[arg(short, long, default_value = "10000")]

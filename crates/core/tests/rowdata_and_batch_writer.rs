@@ -158,7 +158,7 @@ fn different_geometries_basic_arrays() -> Result<()> {
 fn batch_writer_writes_batches_by_row_count() -> Result<()> {
     let out = tmp_file("points_batch");
     let mut writer: GeoParquetBatchWriter<RowPoint> = GeoParquetBatchWriter::new(
-        out.path.to_str().unwrap(),
+        &out.path,
         BatchConfig {
             max_rows_per_batch: 3,
         }, // trigger frequent writes

@@ -1,9 +1,10 @@
+use std::{fs::File, io::BufWriter, path::Path, sync::Arc};
+
 use anyhow::Result;
 use arrow_array::{Array, RecordBatch};
 use arrow_schema::Schema;
 use geoparquet::writer::GeoParquetRecordBatchEncoder;
 use parquet::arrow::ArrowWriter;
-use std::{fs::File, sync::Arc};
 
 pub use geoparquet_batch_writer_derive::GeoParquetRowData;
 
@@ -32,10 +33,12 @@ pub trait GeoParquetRowData: Clone + Send + Sync {
     fn to_arrays(rows: &[Self]) -> Result<Vec<Arc<dyn Array>>>;
 }
 
-/// A batch writer for GeoParquet files that handles memory-based batching automatically
+/// A batch writer for GeoParquet files that handle batching automatically.
+///
+/// Use the Derive trait to create row records.
 pub struct GeoParquetBatchWriter<T: GeoParquetRowData> {
     encoder: GeoParquetRecordBatchEncoder,
-    writer: ArrowWriter<File>,
+    writer: ArrowWriter<BufWriter<File>>,
     schema: Arc<Schema>,
     config: BatchConfig,
     current_batch: Vec<T>,
@@ -44,11 +47,12 @@ pub struct GeoParquetBatchWriter<T: GeoParquetRowData> {
 
 impl<T: GeoParquetRowData> GeoParquetBatchWriter<T> {
     /// Create a new GeoParquetBatchWriter
-    pub fn new(output_path: &str, config: BatchConfig) -> Result<Self> {
+    pub fn new<P: AsRef<Path>>(output_path: P, config: BatchConfig) -> Result<Self> {
         let schema = T::schema();
         let encoder = GeoParquetRecordBatchEncoder::try_new(&schema, &Default::default())?;
-        let writer =
-            ArrowWriter::try_new(File::create(output_path)?, encoder.target_schema(), None)?;
+        let out_f = File::create(output_path.as_ref())?;
+        let out_buf = BufWriter::new(out_f);
+        let writer = ArrowWriter::try_new(out_buf, encoder.target_schema(), None)?;
 
         Ok(Self {
             encoder,
