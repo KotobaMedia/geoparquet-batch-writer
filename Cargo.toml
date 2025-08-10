@@ -1,20 +1,8 @@
 [workspace]
+resolver = "3"
 members = [
-  "crates/core", "crates/derive",
+  "crates/core",
+  "crates/derive",
+  "crates/example-cli",
 ]
 
-[package]
-name = "geoparquet-batch-writer-cli"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
-anyhow = "1"
-arrow-array = "56"
-arrow-schema = "56"
-geoparquet-batch-writer = { version = "0.1.0", path = "crates/core" }
-geoarrow-array = "0.5"
-geoarrow-schema = "0.5"
-clap = { version = "4", features = ["derive"] }
-geo-types = "0.7"
-rand = "0.8"

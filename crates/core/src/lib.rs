@@ -104,11 +104,11 @@ impl<T: GeoParquetRowData> GeoParquetBatchWriter<T> {
         // Build arrays for current rows
         let arrays = T::to_arrays(&self.current_batch)?;
         self.batch_num += 1;
-        println!(
-            "Processing batch {} ({} rows)",
-            self.batch_num,
-            self.current_batch.len()
-        );
+        // println!(
+        //     "Processing batch {} ({} rows)",
+        //     self.batch_num,
+        //     self.current_batch.len()
+        // );
 
         let batch = RecordBatch::try_new(self.schema.clone(), arrays)?;
         let encoded_batch = self.encoder.encode_record_batch(&batch)?;

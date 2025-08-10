@@ -608,27 +608,23 @@ dependencies = [
 ]
 
 [[package]]
-name = "geoparquet-batch-writer-cli"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "arrow-array",
- "arrow-schema",
- "clap",
- "geo-types",
- "geoarrow-array",
- "geoarrow-schema",
- "geoparquet-batch-writer",
- "rand",
-]
-
-[[package]]
 name = "geoparquet-batch-writer-derive"
 version = "0.1.0"
 dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "geoparquet-batch-writer-example-cli"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "geo-types",
+ "geoparquet-batch-writer",
+ "rand",
 ]
 
 [[package]]

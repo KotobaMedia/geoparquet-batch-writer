@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 
 #[derive(Parser)]
 #[command(name = "geoparquet-generator")]
-#[command(about = "A CLI tool to generate random geospatial data and save it as GeoParquet")]
+#[command(about = "Example CLI to generate random geospatial data and save it as GeoParquet")]
 struct Cli {
     /// Output file path for the GeoParquet file
     #[arg(short, long, default_value = "output.parquet")]
@@ -18,7 +18,12 @@ struct Cli {
     count: usize,
 
     /// Bounding box for random points: min_lon,min_lat,max_lon,max_lat
-    #[arg(short, long, default_value = "-180,-90,180,90")]
+    #[arg(
+        short,
+        long,
+        default_value = "-180,-90,180,90",
+        allow_hyphen_values = true
+    )]
     bbox: String,
 }
 

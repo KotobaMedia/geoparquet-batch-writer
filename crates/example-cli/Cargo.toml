@@ -1,0 +1,13 @@
+[package]
+name = "geoparquet-batch-writer-example-cli"
+version = "0.1.0"
+license = "MIT"
+edition = "2024"
+publish = false
+
+[dependencies]
+anyhow = "1"
+geoparquet-batch-writer = { version = "0.1.0", path = "../core" }
+clap = { version = "4", features = ["derive"] }
+geo-types = "0.7"
+rand = "0.8"
