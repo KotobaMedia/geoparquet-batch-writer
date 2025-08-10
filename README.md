@@ -1,5 +1,8 @@
 # GeoParquet Batch Writer
 
+[![Crates.io Version](https://img.shields.io/crates/v/geoparquet-batch-writer)](https://crates.io/crates/geoparquet-batch-writer)
+[![docs.rs](https://img.shields.io/docsrs/geoparquet-batch-writer)](https://docs.rs/geoparquet-batch-writer/latest/geoparquet-batch-writer/)
+
 Rust library (plus derive macro) for writing GeoParquet files efficiently in batches using GeoArrow/Arrow. Define a simple row struct with a geometry field, derive `GeoParquetRowData`, and stream rows to an on-disk GeoParquet file.
 
 ## Features

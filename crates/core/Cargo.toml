@@ -6,6 +6,7 @@ repository = "https://github.com/KotobaMedia/geoparquet-batch-writer/"
 version = "0.1.0"
 license = "MIT"
 edition = "2024"
+keywords = ["geoparquet"]
 publish = true
 
 [dependencies]
