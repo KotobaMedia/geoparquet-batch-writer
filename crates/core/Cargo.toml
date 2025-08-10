@@ -3,7 +3,7 @@ name = "geoparquet-batch-writer"
 description = "A library for convenient batch writing of GeoParquet files"
 homepage = "https://github.com/KotobaMedia/geoparquet-batch-writer/"
 repository = "https://github.com/KotobaMedia/geoparquet-batch-writer/"
-version = "0.1.0"
+version = "0.1.1"
 license = "MIT"
 edition = "2024"
 keywords = ["geoparquet"]
@@ -18,7 +18,7 @@ geoarrow-array = "0.5"
 geoarrow-schema = "0.5"
 geoparquet = "0.5"
 parquet = { version = "56", features = ["arrow"] }
-geoparquet-batch-writer-derive = { version = "=0.1.0", path = "../derive" }
+geoparquet-batch-writer-derive = { version = "=0.1.1", path = "../derive" }
 
 [dev-dependencies]
 tempfile = "3"
