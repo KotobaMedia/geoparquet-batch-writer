@@ -5,6 +5,9 @@ license = "MIT"
 edition = "2024"
 publish = false
 
+[package.metadata.release]
+release = false
+
 [dependencies]
 anyhow = "1"
 geoparquet-batch-writer = { version = "0.1.0", path = "../core" }
