@@ -1,18 +1,20 @@
 use std::{fs::File, io::BufWriter, path::Path, sync::Arc};
 
-use anyhow::Result;
 use arrow_array::{Array, RecordBatch};
 use arrow_schema::Schema;
 use geoparquet::writer::GeoParquetRecordBatchEncoder;
 use parquet::arrow::ArrowWriter;
 
+pub use error::{GeoParquetBatchWriterError, Result};
 pub use geoparquet_batch_writer_derive::GeoParquetRowData;
+
+mod error;
 
 /// Internal re-exports used by the proc-macro expansion.
 /// This lets downstream users only depend on `geoparquet-batch-writer`.
 #[doc(hidden)]
 pub mod __dep {
-    pub use anyhow;
+    pub use crate::error::{GeoParquetBatchWriterError, Result};
     pub use arrow_array;
     pub use arrow_schema;
     pub use geoarrow_array;

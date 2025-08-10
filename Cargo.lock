@@ -605,6 +605,7 @@ dependencies = [
  "geoparquet-batch-writer-derive",
  "parquet",
  "tempfile",
+ "thiserror",
 ]
 
 [[package]]

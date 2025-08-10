@@ -335,7 +335,7 @@ fn impl_geoparquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
     let arrays_vec_tokens = quote! {
         {
             #geometry_init_tokens
-            ::anyhow::Ok(vec![
+            ::std::result::Result::Ok(vec![
                 #(#array_expr_tokens),*
             ])
         }
@@ -349,7 +349,7 @@ fn impl_geoparquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
                 #schema_vec_tokens
             }
 
-            fn to_arrays(rows: &[Self]) -> ::geoparquet_batch_writer::__dep::anyhow::Result<Vec<::std::sync::Arc<dyn ::geoparquet_batch_writer::__dep::arrow_array::Array>>> {
+            fn to_arrays(rows: &[Self]) -> ::geoparquet_batch_writer::__dep::Result<Vec<::std::sync::Arc<dyn ::geoparquet_batch_writer::__dep::arrow_array::Array>>> {
                 #arrays_vec_tokens
             }
         }
