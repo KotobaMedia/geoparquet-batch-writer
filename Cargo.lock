@@ -597,6 +597,7 @@ version = "0.1.2"
 dependencies = [
  "anyhow",
  "arrow-array",
+ "arrow-buffer",
  "arrow-schema",
  "geo-types",
  "geoarrow-array",

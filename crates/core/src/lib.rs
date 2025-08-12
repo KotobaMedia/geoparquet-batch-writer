@@ -6,7 +6,7 @@ use geoparquet::writer::{GeoParquetRecordBatchEncoder, GeoParquetWriterOptionsBu
 use parquet::arrow::ArrowWriter;
 
 pub use error::{GeoParquetBatchWriterError, Result};
-pub use geoparquet_batch_writer_derive::GeoParquetRowData;
+pub use geoparquet_batch_writer_derive::{GeoParquetRowData, GeoParquetRowStruct};
 
 mod error;
 
@@ -223,6 +223,7 @@ pub mod __dep {
     pub use crate::ArrowDataType;
     pub use crate::error::{GeoParquetBatchWriterError, Result};
     pub use arrow_array;
+    pub use arrow_buffer;
     pub use arrow_schema;
     pub use geoarrow_array;
     pub use geoarrow_schema;
