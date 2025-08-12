@@ -10,7 +10,7 @@ release = false
 
 [dependencies]
 anyhow = "1"
-geoparquet-batch-writer = { version = "0.1.1", path = "../core" }
+geoparquet-batch-writer = { version = "0.1.2", path = "../core" }
 clap = { version = "4", features = ["derive"] }
 geo-types = "0.7"
 rand = "0.8"
