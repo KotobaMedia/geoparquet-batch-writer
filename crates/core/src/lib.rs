@@ -37,7 +37,7 @@ impl Default for BatchConfig {
 }
 
 /// Trait for data that can be written to GeoParquet files
-pub trait GeoParquetRowData: Clone + Send + Sync {
+pub trait GeoParquetRowData: Send + Sync + Sized {
     /// Get the Arrow schema for this row type
     fn schema() -> Arc<Schema>;
 
@@ -90,9 +90,12 @@ impl<T: GeoParquetRowData> GeoParquetBatchWriter<T> {
     }
 
     /// Add multiple rows to the batch writer
-    pub fn add_rows(&mut self, rows: &[T]) -> Result<()> {
+    pub fn add_rows<I>(&mut self, rows: I) -> Result<()>
+    where
+        I: IntoIterator<Item = T>,
+    {
         for row in rows {
-            self.add_row(row.clone())?;
+            self.add_row(row)?;
         }
         Ok(())
     }

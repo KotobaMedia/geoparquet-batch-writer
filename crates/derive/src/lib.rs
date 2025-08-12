@@ -343,7 +343,7 @@ fn impl_geoparquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
 
     let expanded = quote! {
         impl ::geoparquet_batch_writer::GeoParquetRowData for #struct_ident
-        where Self: Clone + Send + Sync
+        where Self: Send + Sync
         {
             fn schema() -> ::std::sync::Arc<::geoparquet_batch_writer::__dep::arrow_schema::Schema> {
                 #schema_vec_tokens

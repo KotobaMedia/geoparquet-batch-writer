@@ -39,7 +39,7 @@ use anyhow::Result;
 use geo_types::Point;
 use geoparquet_batch_writer::{BatchConfig, GeoParquetBatchWriter, GeoParquetRowData};
 
-#[derive(Clone, GeoParquetRowData)]
+#[derive(GeoParquetRowData)]
 struct Row {
     id: u64,
     #[geo(name = "geom", geometry, dim = "XY")] // XY | XYZ | XYM
