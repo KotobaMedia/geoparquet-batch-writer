@@ -2,7 +2,7 @@ use std::{fs::File, io::BufWriter, path::Path, sync::Arc};
 
 use arrow_array::{Array, RecordBatch};
 use arrow_schema::Schema;
-use geoparquet::writer::GeoParquetRecordBatchEncoder;
+use geoparquet::writer::{GeoParquetRecordBatchEncoder, GeoParquetWriterOptionsBuilder};
 use parquet::arrow::ArrowWriter;
 
 pub use error::{GeoParquetBatchWriterError, Result};
@@ -62,7 +62,10 @@ impl<T: GeoParquetRowData> GeoParquetBatchWriter<T> {
     /// Create a new GeoParquetBatchWriter
     pub fn new<P: AsRef<Path>>(output_path: P, config: BatchConfig) -> Result<Self> {
         let schema = T::schema();
-        let encoder = GeoParquetRecordBatchEncoder::try_new(&schema, &Default::default())?;
+        let options = GeoParquetWriterOptionsBuilder::default()
+            .set_generate_covering(true)
+            .build();
+        let encoder = GeoParquetRecordBatchEncoder::try_new(&schema, &options)?;
         let out_f = File::create(output_path.as_ref())?;
         let out_buf = BufWriter::new(out_f);
         let writer = ArrowWriter::try_new(out_buf, encoder.target_schema(), None)?;
