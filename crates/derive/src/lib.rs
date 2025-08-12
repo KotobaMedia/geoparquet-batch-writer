@@ -373,6 +373,21 @@ fn option_inner(ty: &Type) -> Option<&Type> {
     None
 }
 
+fn vec_inner(ty: &Type) -> Option<&Type> {
+    if let Type::Path(tp) = ty {
+        if let Some(seg) = tp.path.segments.last() {
+            if seg.ident == "Vec" {
+                if let PathArguments::AngleBracketed(args) = &seg.arguments {
+                    if let Some(syn::GenericArgument::Type(inner)) = args.args.first() {
+                        return Some(inner);
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
 fn geometry_kind(ty: &Type) -> Option<GeometryKind> {
     // Expect something like geo_types::Point<f64>, geo_types::LineString<f64>, etc.
     if let Type::Path(tp) = ty {
@@ -403,6 +418,22 @@ fn geometry_kind(ty: &Type) -> Option<GeometryKind> {
 }
 
 fn arrow_datatype(ty: &Type) -> syn::Result<proc_macro2::TokenStream> {
+    // Check if this is a Vec<T> type
+    if let Some(inner_ty) = vec_inner(ty) {
+        let inner_dt = arrow_datatype(inner_ty)?;
+        return Ok(quote!(
+            ::geoparquet_batch_writer::__dep::arrow_schema::DataType::List(
+                ::std::sync::Arc::new(
+                    ::geoparquet_batch_writer::__dep::arrow_schema::Field::new(
+                        "item",
+                        #inner_dt,
+                        true
+                    )
+                )
+            )
+        ));
+    }
+
     Ok(match type_name(ty).as_str() {
         "u64" => quote!(::geoparquet_batch_writer::__dep::arrow_schema::DataType::UInt64),
         "i64" => quote!(::geoparquet_batch_writer::__dep::arrow_schema::DataType::Int64),
@@ -425,6 +456,90 @@ fn array_ctor(
     ty: &Type,
     is_option: bool,
 ) -> syn::Result<(proc_macro2::TokenStream, proc_macro2::TokenStream)> {
+    // Check if this is a Vec<T> type
+    if let Some(inner_ty) = vec_inner(ty) {
+        let inner_type_name = type_name(inner_ty);
+        let (values_builder_type, values_append) = match inner_type_name.as_str() {
+            "u64" => (
+                quote!(::geoparquet_batch_writer::__dep::arrow_array::builder::UInt64Builder),
+                quote!(values.append_value(*val)),
+            ),
+            "i64" => (
+                quote!(::geoparquet_batch_writer::__dep::arrow_array::builder::Int64Builder),
+                quote!(values.append_value(*val)),
+            ),
+            "u32" => (
+                quote!(::geoparquet_batch_writer::__dep::arrow_array::builder::UInt32Builder),
+                quote!(values.append_value(*val)),
+            ),
+            "i32" => (
+                quote!(::geoparquet_batch_writer::__dep::arrow_array::builder::Int32Builder),
+                quote!(values.append_value(*val)),
+            ),
+            "f64" => (
+                quote!(::geoparquet_batch_writer::__dep::arrow_array::builder::Float64Builder),
+                quote!(values.append_value(*val)),
+            ),
+            "f32" => (
+                quote!(::geoparquet_batch_writer::__dep::arrow_array::builder::Float32Builder),
+                quote!(values.append_value(*val)),
+            ),
+            "bool" => (
+                quote!(::geoparquet_batch_writer::__dep::arrow_array::builder::BooleanBuilder),
+                quote!(values.append_value(*val)),
+            ),
+            "String" => (
+                quote!(::geoparquet_batch_writer::__dep::arrow_array::builder::StringBuilder),
+                quote!(values.append_value(val)),
+            ),
+            other => {
+                return Err(syn::Error::new(
+                    inner_ty.span(),
+                    format!("Unsupported list element type `{}`", other),
+                ));
+            }
+        };
+
+        let list_construction = if is_option {
+            quote! {
+                {
+                    let mut builder = ::geoparquet_batch_writer::__dep::arrow_array::builder::ListBuilder::new(#values_builder_type::new());
+                    for opt_vec in it {
+                        if let Some(vec_val) = opt_vec {
+                            let values = builder.values();
+                            for val in vec_val {
+                                #values_append;
+                            }
+                            builder.append(true);
+                        } else {
+                            builder.append(false);
+                        }
+                    }
+                    builder.finish()
+                }
+            }
+        } else {
+            quote! {
+                {
+                    let mut builder = ::geoparquet_batch_writer::__dep::arrow_array::builder::ListBuilder::new(#values_builder_type::new());
+                    for vec_val in it {
+                        let values = builder.values();
+                        for val in vec_val {
+                            #values_append;
+                        }
+                        builder.append(true);
+                    }
+                    builder.finish()
+                }
+            }
+        };
+
+        return Ok((
+            quote!(::geoparquet_batch_writer::__dep::arrow_array::ListArray),
+            quote! { ::std::sync::Arc::new(#list_construction) },
+        ));
+    }
+
     let t = type_name(ty);
     let (arr_ty, from_vals, from_opts): (_, _, _) = match t.as_str() {
         "u64" => (
@@ -491,22 +606,31 @@ fn array_ctor(
 }
 
 fn value_mapper(ty: &Type, ident: &Ident, is_option: bool) -> proc_macro2::TokenStream {
-    let t = type_name(ty);
-    if t == "String" {
+    // Check if this is a Vec<T> type
+    if vec_inner(ty).is_some() {
         if is_option {
-            quote!(|r: &Self| r.#ident.as_deref())
+            quote!(|r: &Self| r.#ident.as_ref())
         } else {
-            quote!(|r: &Self| r.#ident.as_str())
-        }
-    } else if is_copy_scalar(&t) {
-        if is_option {
-            quote!(|r: &Self| r.#ident)
-        } else {
-            quote!(|r: &Self| r.#ident)
+            quote!(|r: &Self| &r.#ident)
         }
     } else {
-        // Shouldn't happen given our supported types
-        quote!(|r: &Self| r.#ident)
+        let t = type_name(ty);
+        if t == "String" {
+            if is_option {
+                quote!(|r: &Self| r.#ident.as_deref())
+            } else {
+                quote!(|r: &Self| r.#ident.as_str())
+            }
+        } else if is_copy_scalar(&t) {
+            if is_option {
+                quote!(|r: &Self| r.#ident)
+            } else {
+                quote!(|r: &Self| r.#ident)
+            }
+        } else {
+            // Shouldn't happen given our supported types
+            quote!(|r: &Self| r.#ident)
+        }
     }
 }
 

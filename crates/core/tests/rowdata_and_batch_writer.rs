@@ -62,6 +62,16 @@ struct RowGeometryEnum {
     geom: Geometry<f64>,
 }
 
+#[derive(Clone, GeoParquetRowData)]
+struct RowWithVecs {
+    id: u32,
+    tags: Vec<String>,
+    scores: Vec<f64>,
+    counts: Option<Vec<i32>>,
+    #[geo(geometry)]
+    geom: Point<f64>,
+}
+
 struct TmpPath {
     _dir: tempfile::TempDir,
     path: PathBuf,
@@ -96,6 +106,39 @@ fn schema_and_arrays_point() -> Result<()> {
     // basic memory size sanity
     let total_mem: usize = arrays.iter().map(|a| a.get_array_memory_size()).sum();
     assert!(total_mem > 0);
+    Ok(())
+}
+
+#[test]
+fn schema_and_arrays_with_vecs() -> Result<()> {
+    // Schema fields and array conversion for rows with Vec fields
+    let schema = RowWithVecs::schema();
+    assert_eq!(schema.fields().len(), 5); // id, tags, scores, counts, geom
+
+    let rows = vec![
+        RowWithVecs {
+            id: 1,
+            tags: vec!["a".to_string(), "b".to_string()],
+            scores: vec![1.0, 2.0, 3.0],
+            counts: Some(vec![10, 20]),
+            geom: Point::new(1.0, 2.0),
+        },
+        RowWithVecs {
+            id: 2,
+            tags: vec!["c".to_string()],
+            scores: vec![4.0],
+            counts: None,
+            geom: Point::new(3.0, 4.0),
+        },
+    ];
+
+    let arrays = RowWithVecs::to_arrays(&rows)?;
+    assert_eq!(arrays.len(), 5);
+
+    // Check that list arrays have correct lengths
+    let total_mem: usize = arrays.iter().map(|a| a.get_array_memory_size()).sum();
+    assert!(total_mem > 0);
+
     Ok(())
 }
 
