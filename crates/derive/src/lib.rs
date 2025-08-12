@@ -434,22 +434,8 @@ fn arrow_datatype(ty: &Type) -> syn::Result<proc_macro2::TokenStream> {
         ));
     }
 
-    Ok(match type_name(ty).as_str() {
-        "u64" => quote!(::geoparquet_batch_writer::__dep::arrow_schema::DataType::UInt64),
-        "i64" => quote!(::geoparquet_batch_writer::__dep::arrow_schema::DataType::Int64),
-        "u32" => quote!(::geoparquet_batch_writer::__dep::arrow_schema::DataType::UInt32),
-        "i32" => quote!(::geoparquet_batch_writer::__dep::arrow_schema::DataType::Int32),
-        "f64" => quote!(::geoparquet_batch_writer::__dep::arrow_schema::DataType::Float64),
-        "f32" => quote!(::geoparquet_batch_writer::__dep::arrow_schema::DataType::Float32),
-        "bool" => quote!(::geoparquet_batch_writer::__dep::arrow_schema::DataType::Boolean),
-        "String" => quote!(::geoparquet_batch_writer::__dep::arrow_schema::DataType::Utf8),
-        other => {
-            return Err(syn::Error::new(
-                ty.span(),
-                format!("Unsupported field type `{}`", other),
-            ));
-        }
-    })
+    // Use the ArrowDataType trait to get the data type
+    Ok(quote!(<#ty as ::geoparquet_batch_writer::__dep::ArrowDataType>::data_type()))
 }
 
 fn array_ctor(
@@ -540,69 +526,14 @@ fn array_ctor(
         ));
     }
 
-    let t = type_name(ty);
-    let (arr_ty, from_vals, from_opts): (_, _, _) = match t.as_str() {
-        "u64" => (
-            quote!(::geoparquet_batch_writer::__dep::arrow_array::UInt64Array),
-            quote!(
-                ::geoparquet_batch_writer::__dep::arrow_array::UInt64Array::from_iter_values(it)
-            ),
-            quote!(::geoparquet_batch_writer::__dep::arrow_array::UInt64Array::from_iter(it)),
-        ),
-        "i64" => (
-            quote!(::geoparquet_batch_writer::__dep::arrow_array::Int64Array),
-            quote!(::geoparquet_batch_writer::__dep::arrow_array::Int64Array::from_iter_values(it)),
-            quote!(::geoparquet_batch_writer::__dep::arrow_array::Int64Array::from_iter(it)),
-        ),
-        "u32" => (
-            quote!(::geoparquet_batch_writer::__dep::arrow_array::UInt32Array),
-            quote!(
-                ::geoparquet_batch_writer::__dep::arrow_array::UInt32Array::from_iter_values(it)
-            ),
-            quote!(::geoparquet_batch_writer::__dep::arrow_array::UInt32Array::from_iter(it)),
-        ),
-        "i32" => (
-            quote!(::geoparquet_batch_writer::__dep::arrow_array::Int32Array),
-            quote!(::geoparquet_batch_writer::__dep::arrow_array::Int32Array::from_iter_values(it)),
-            quote!(::geoparquet_batch_writer::__dep::arrow_array::Int32Array::from_iter(it)),
-        ),
-        "f64" => (
-            quote!(::geoparquet_batch_writer::__dep::arrow_array::Float64Array),
-            quote!(
-                ::geoparquet_batch_writer::__dep::arrow_array::Float64Array::from_iter_values(it)
-            ),
-            quote!(::geoparquet_batch_writer::__dep::arrow_array::Float64Array::from_iter(it)),
-        ),
-        "f32" => (
-            quote!(::geoparquet_batch_writer::__dep::arrow_array::Float32Array),
-            quote!(
-                ::geoparquet_batch_writer::__dep::arrow_array::Float32Array::from_iter_values(it)
-            ),
-            quote!(::geoparquet_batch_writer::__dep::arrow_array::Float32Array::from_iter(it)),
-        ),
-        "bool" => (
-            quote!(::geoparquet_batch_writer::__dep::arrow_array::BooleanArray),
-            quote!(
-                ::geoparquet_batch_writer::__dep::arrow_array::BooleanArray::from_iter_values(it)
-            ),
-            quote!(::geoparquet_batch_writer::__dep::arrow_array::BooleanArray::from_iter(it)),
-        ),
-        "String" => (
-            quote!(::geoparquet_batch_writer::__dep::arrow_array::StringArray),
-            quote!(
-                ::geoparquet_batch_writer::__dep::arrow_array::StringArray::from_iter_values(it)
-            ),
-            quote!(::geoparquet_batch_writer::__dep::arrow_array::StringArray::from_iter(it)),
-        ),
-        other => {
-            return Err(syn::Error::new(
-                ty.span(),
-                format!("Unsupported field type `{}`", other),
-            ));
-        }
+    // Use the ArrowDataType trait for array construction
+    let arr_ty = quote!(<#ty as ::geoparquet_batch_writer::__dep::ArrowDataType>::Array);
+    let from = if is_option {
+        quote!(<#ty as ::geoparquet_batch_writer::__dep::ArrowDataType>::from_iter(it))
+    } else {
+        quote!(<#ty as ::geoparquet_batch_writer::__dep::ArrowDataType>::from_iter_values(it))
     };
-    let from = if is_option { from_opts } else { from_vals };
-    Ok((arr_ty, quote! { ::std::sync::Arc::new(#from) }))
+    Ok((arr_ty, from))
 }
 
 fn value_mapper(ty: &Type, ident: &Ident, is_option: bool) -> proc_macro2::TokenStream {
@@ -617,9 +548,9 @@ fn value_mapper(ty: &Type, ident: &Ident, is_option: bool) -> proc_macro2::Token
         let t = type_name(ty);
         if t == "String" {
             if is_option {
-                quote!(|r: &Self| r.#ident.as_deref())
+                quote!(|r: &Self| r.#ident.as_ref().map(|s| s.clone()))
             } else {
-                quote!(|r: &Self| r.#ident.as_str())
+                quote!(|r: &Self| r.#ident.clone())
             }
         } else if is_copy_scalar(&t) {
             if is_option {
