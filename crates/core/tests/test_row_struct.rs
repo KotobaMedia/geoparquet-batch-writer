@@ -110,3 +110,31 @@ fn test_optional_struct_from_iter() {
     assert!(nulls.is_null(1));  // second element is null
     assert!(!nulls.is_null(2)); // third element is not null
 }
+
+// Test that darling migration is working properly with custom names
+#[derive(GeoParquetRowStruct, Clone, Default)]
+struct DarlingTestStruct {
+    id: u64,
+    #[geo(name = "special_name")]
+    field_with_custom_name: String,
+    optional_field: Option<f64>,
+}
+
+#[test]
+fn test_darling_custom_attribute_parsing() {
+    let dt = DarlingTestStruct::data_type();
+    match dt {
+        DataType::Struct(fields) => {
+            assert_eq!(fields.len(), 3);
+            assert_eq!(fields[0].name(), "id");
+            assert_eq!(fields[1].name(), "special_name"); // Should use darling-parsed custom name
+            assert_eq!(fields[2].name(), "optional_field");
+
+            // Check nullability
+            assert!(!fields[0].is_nullable());
+            assert!(!fields[1].is_nullable());
+            assert!(fields[2].is_nullable());
+        },
+        _ => panic!("Expected Struct data type"),
+    }
+}

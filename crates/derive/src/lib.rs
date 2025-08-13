@@ -1,8 +1,7 @@
+use darling::{FromDeriveInput, FromField};
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
-use syn::{
-    Data, DeriveInput, Fields, Ident, Lit, PathArguments, Type, parse_macro_input, spanned::Spanned,
-};
+use syn::{DeriveInput, Ident, PathArguments, Type, parse_macro_input, spanned::Spanned};
 
 #[derive(Clone, Copy, Debug)]
 enum GeometryKind {
@@ -14,6 +13,34 @@ enum GeometryKind {
     MultiPolygon,
     Geometry,
     GeometryCollection,
+}
+
+/// Darling struct for parsing container-level attributes
+#[derive(FromDeriveInput, Debug)]
+#[darling(attributes(geo), forward_attrs(allow, doc, cfg))]
+struct GeoParquetOpts {
+    ident: Ident,
+    data: darling::ast::Data<(), GeoFieldOpts>,
+}
+
+/// Darling struct for parsing field-level attributes
+#[derive(FromField, Debug)]
+#[darling(attributes(geo), forward_attrs(allow, doc, cfg))]
+struct GeoFieldOpts {
+    ident: Option<Ident>,
+    ty: Type,
+
+    /// Custom column name for the field
+    #[darling(default)]
+    name: Option<String>,
+
+    /// Mark field as geometry column
+    #[darling(default)]
+    geometry: bool,
+
+    /// Geometry dimension (XY, XYZ, XYM)
+    #[darling(default)]
+    dim: Option<String>,
 }
 
 #[proc_macro_derive(GeoParquetRowData, attributes(geo))]
@@ -35,19 +62,13 @@ pub fn derive_geo_parquet_row_struct(input: TokenStream) -> TokenStream {
 }
 
 fn impl_geoparquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
-    let struct_ident = &input.ident;
+    // Parse attributes using darling
+    let opts = GeoParquetOpts::from_derive_input(input).map_err(|e| syn::Error::from(e))?;
 
-    let fields = match &input.data {
-        Data::Struct(s) => match &s.fields {
-            Fields::Named(f) => &f.named,
-            _ => {
-                // DataStruct doesn't implement Spanned in syn 2; use the fields span.
-                return Err(syn::Error::new(
-                    s.fields.span(),
-                    "GeoParquetRowData requires named fields",
-                ));
-            }
-        },
+    let struct_ident = &opts.ident;
+
+    let fields = match &opts.data {
+        darling::ast::Data::Struct(fields) => fields,
         _ => {
             return Err(syn::Error::new(
                 input.span(),
@@ -69,52 +90,31 @@ fn impl_geoparquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
     let mut finfos: Vec<FieldInfo> = Vec::new();
     let mut geom_count = 0usize;
 
-    for f in fields {
-        let ident = f.ident.clone().unwrap();
-        let mut col_name = ident.to_string();
-        let mut is_geometry = false;
-        let mut dim: Option<String> = None;
+    for field_opts in &fields.fields {
+        let ident = field_opts.ident.clone().ok_or_else(|| {
+            syn::Error::new(
+                field_opts.ty.span(),
+                "GeoParquetRowData requires named fields",
+            )
+        })?;
 
-        // Parse #[geo(...)] attrs
-        for attr in &f.attrs {
-            if !attr.path().is_ident("geo") {
-                continue;
-            }
-            // syn 2.0: use parse_nested_meta to handle attribute arguments
-            attr.parse_nested_meta(|meta| {
-                if meta.path.is_ident("geometry") {
-                    is_geometry = true;
-                    return Ok(());
-                }
-                if meta.path.is_ident("name") {
-                    let lit: Lit = meta.value()?.parse()?;
-                    if let Lit::Str(s) = lit {
-                        col_name = s.value();
-                    }
-                    return Ok(());
-                }
-                if meta.path.is_ident("dim") {
-                    let lit: Lit = meta.value()?.parse()?;
-                    if let Lit::Str(s) = lit {
-                        dim = Some(s.value());
-                    }
-                    return Ok(());
-                }
-                Ok(())
-            })?;
-        }
+        // Use provided name or default to field identifier
+        let col_name = field_opts.name.clone().unwrap_or_else(|| ident.to_string());
+
+        // Check if explicitly marked as geometry
+        let is_geometry = field_opts.geometry;
+        let dim = field_opts.dim.clone();
 
         // Detect Option<T>
-        let (is_option, inner_ty) = match option_inner(&f.ty) {
+        let (is_option, inner_ty) = match option_inner(&field_opts.ty) {
             Some(t) => (true, t),
-            None => (false, &f.ty),
+            None => (false, &field_opts.ty),
         };
 
         // Heuristic geometry detection if not annotated
         let detected_kind = geometry_kind(inner_ty);
-        if !is_geometry && detected_kind.is_some() {
-            is_geometry = true;
-        }
+        let is_geometry = is_geometry || detected_kind.is_some();
+
         if is_geometry {
             geom_count += 1;
         }
@@ -368,18 +368,13 @@ fn impl_geoparquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
 }
 
 fn impl_geoparquet_row_struct(input: &DeriveInput) -> syn::Result<TokenStream> {
-    let struct_ident = &input.ident;
+    // Parse attributes using darling
+    let opts = GeoParquetOpts::from_derive_input(input).map_err(|e| syn::Error::from(e))?;
 
-    let fields = match &input.data {
-        Data::Struct(s) => match &s.fields {
-            Fields::Named(f) => &f.named,
-            _ => {
-                return Err(syn::Error::new(
-                    s.fields.span(),
-                    "GeoParquetRowStruct requires named fields",
-                ));
-            }
-        },
+    let struct_ident = &opts.ident;
+
+    let fields = match &opts.data {
+        darling::ast::Data::Struct(fields) => fields,
         _ => {
             return Err(syn::Error::new(
                 input.span(),
@@ -397,31 +392,21 @@ fn impl_geoparquet_row_struct(input: &DeriveInput) -> syn::Result<TokenStream> {
 
     let mut finfos: Vec<FieldInfo> = Vec::new();
 
-    for f in fields {
-        let ident = f.ident.clone().unwrap();
-        let mut col_name = ident.to_string();
+    for field_opts in &fields.fields {
+        let ident = field_opts.ident.clone().ok_or_else(|| {
+            syn::Error::new(
+                field_opts.ty.span(),
+                "GeoParquetRowStruct requires named fields",
+            )
+        })?;
 
-        // Parse #[geo(...)] attrs for custom column names
-        for attr in &f.attrs {
-            if !attr.path().is_ident("geo") {
-                continue;
-            }
-            attr.parse_nested_meta(|meta| {
-                if meta.path.is_ident("name") {
-                    let lit: Lit = meta.value()?.parse()?;
-                    if let Lit::Str(s) = lit {
-                        col_name = s.value();
-                    }
-                    return Ok(());
-                }
-                Ok(())
-            })?;
-        }
+        // Use provided name or default to field identifier
+        let col_name = field_opts.name.clone().unwrap_or_else(|| ident.to_string());
 
         // Detect Option<T>
-        let (is_option, inner_ty) = match option_inner(&f.ty) {
+        let (is_option, inner_ty) = match option_inner(&field_opts.ty) {
             Some(t) => (true, t),
-            None => (false, &f.ty),
+            None => (false, &field_opts.ty),
         };
 
         finfos.push(FieldInfo {
