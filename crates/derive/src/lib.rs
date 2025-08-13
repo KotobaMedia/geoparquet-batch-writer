@@ -1,8 +1,7 @@
+use darling::{FromDeriveInput, FromField};
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
-use syn::{
-    Data, DeriveInput, Fields, Ident, Lit, PathArguments, Type, parse_macro_input, spanned::Spanned,
-};
+use syn::{DeriveInput, Ident, PathArguments, Type, parse_macro_input, spanned::Spanned};
 
 #[derive(Clone, Copy, Debug)]
 enum GeometryKind {
@@ -16,6 +15,34 @@ enum GeometryKind {
     GeometryCollection,
 }
 
+/// Darling struct for parsing container-level attributes
+#[derive(FromDeriveInput, Debug)]
+#[darling(attributes(geo), forward_attrs(allow, doc, cfg))]
+struct GeoParquetOpts {
+    ident: Ident,
+    data: darling::ast::Data<(), GeoFieldOpts>,
+}
+
+/// Darling struct for parsing field-level attributes
+#[derive(FromField, Debug)]
+#[darling(attributes(geo), forward_attrs(allow, doc, cfg))]
+struct GeoFieldOpts {
+    ident: Option<Ident>,
+    ty: Type,
+
+    /// Custom column name for the field
+    #[darling(default)]
+    name: Option<String>,
+
+    /// Mark field as geometry column
+    #[darling(default)]
+    geometry: bool,
+
+    /// Geometry dimension (XY, XYZ, XYM)
+    #[darling(default)]
+    dim: Option<String>,
+}
+
 #[proc_macro_derive(GeoParquetRowData, attributes(geo))]
 pub fn derive_geo_parquet_row_data(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -25,20 +52,23 @@ pub fn derive_geo_parquet_row_data(input: TokenStream) -> TokenStream {
     }
 }
 
-fn impl_geoparquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
-    let struct_ident = &input.ident;
+#[proc_macro_derive(GeoParquetRowStruct, attributes(geo))]
+pub fn derive_geo_parquet_row_struct(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    match impl_geoparquet_row_struct(&input) {
+        Ok(ts) => ts,
+        Err(e) => e.to_compile_error().into(),
+    }
+}
 
-    let fields = match &input.data {
-        Data::Struct(s) => match &s.fields {
-            Fields::Named(f) => &f.named,
-            _ => {
-                // DataStruct doesn't implement Spanned in syn 2; use the fields span.
-                return Err(syn::Error::new(
-                    s.fields.span(),
-                    "GeoParquetRowData requires named fields",
-                ));
-            }
-        },
+fn impl_geoparquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
+    // Parse attributes using darling
+    let opts = GeoParquetOpts::from_derive_input(input).map_err(|e| syn::Error::from(e))?;
+
+    let struct_ident = &opts.ident;
+
+    let fields = match &opts.data {
+        darling::ast::Data::Struct(fields) => fields,
         _ => {
             return Err(syn::Error::new(
                 input.span(),
@@ -60,52 +90,31 @@ fn impl_geoparquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
     let mut finfos: Vec<FieldInfo> = Vec::new();
     let mut geom_count = 0usize;
 
-    for f in fields {
-        let ident = f.ident.clone().unwrap();
-        let mut col_name = ident.to_string();
-        let mut is_geometry = false;
-        let mut dim: Option<String> = None;
+    for field_opts in &fields.fields {
+        let ident = field_opts.ident.clone().ok_or_else(|| {
+            syn::Error::new(
+                field_opts.ty.span(),
+                "GeoParquetRowData requires named fields",
+            )
+        })?;
 
-        // Parse #[geo(...)] attrs
-        for attr in &f.attrs {
-            if !attr.path().is_ident("geo") {
-                continue;
-            }
-            // syn 2.0: use parse_nested_meta to handle attribute arguments
-            attr.parse_nested_meta(|meta| {
-                if meta.path.is_ident("geometry") {
-                    is_geometry = true;
-                    return Ok(());
-                }
-                if meta.path.is_ident("name") {
-                    let lit: Lit = meta.value()?.parse()?;
-                    if let Lit::Str(s) = lit {
-                        col_name = s.value();
-                    }
-                    return Ok(());
-                }
-                if meta.path.is_ident("dim") {
-                    let lit: Lit = meta.value()?.parse()?;
-                    if let Lit::Str(s) = lit {
-                        dim = Some(s.value());
-                    }
-                    return Ok(());
-                }
-                Ok(())
-            })?;
-        }
+        // Use provided name or default to field identifier
+        let col_name = field_opts.name.clone().unwrap_or_else(|| ident.to_string());
+
+        // Check if explicitly marked as geometry
+        let is_geometry = field_opts.geometry;
+        let dim = field_opts.dim.clone();
 
         // Detect Option<T>
-        let (is_option, inner_ty) = match option_inner(&f.ty) {
+        let (is_option, inner_ty) = match option_inner(&field_opts.ty) {
             Some(t) => (true, t),
-            None => (false, &f.ty),
+            None => (false, &field_opts.ty),
         };
 
         // Heuristic geometry detection if not annotated
         let detected_kind = geometry_kind(inner_ty);
-        if !is_geometry && detected_kind.is_some() {
-            is_geometry = true;
-        }
+        let is_geometry = is_geometry || detected_kind.is_some();
+
         if is_geometry {
             geom_count += 1;
         }
@@ -325,7 +334,6 @@ fn impl_geoparquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
 
     let schema_vec_tokens = quote! {
         {
-            #geometry_init_tokens
             ::std::sync::Arc::new(::geoparquet_batch_writer::__dep::arrow_schema::Schema::new(vec![
                 #(#schema_field_tokens),*
             ]))
@@ -334,7 +342,6 @@ fn impl_geoparquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
 
     let arrays_vec_tokens = quote! {
         {
-            #geometry_init_tokens
             ::std::result::Result::Ok(vec![
                 #(#array_expr_tokens),*
             ])
@@ -346,11 +353,206 @@ fn impl_geoparquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
         where Self: Send + Sync
         {
             fn schema() -> ::std::sync::Arc<::geoparquet_batch_writer::__dep::arrow_schema::Schema> {
+                #geometry_init_tokens
                 #schema_vec_tokens
             }
 
             fn to_arrays(rows: &[Self]) -> ::geoparquet_batch_writer::__dep::Result<Vec<::std::sync::Arc<dyn ::geoparquet_batch_writer::__dep::arrow_array::Array>>> {
+                #geometry_init_tokens
                 #arrays_vec_tokens
+            }
+        }
+    };
+
+    Ok(expanded.into())
+}
+
+fn impl_geoparquet_row_struct(input: &DeriveInput) -> syn::Result<TokenStream> {
+    // Parse attributes using darling
+    let opts = GeoParquetOpts::from_derive_input(input).map_err(|e| syn::Error::from(e))?;
+
+    let struct_ident = &opts.ident;
+
+    let fields = match &opts.data {
+        darling::ast::Data::Struct(fields) => fields,
+        _ => {
+            return Err(syn::Error::new(
+                input.span(),
+                "GeoParquetRowStruct supports only structs",
+            ));
+        }
+    };
+
+    struct FieldInfo {
+        ident: Ident,
+        col_name: String,
+        ty: syn::Type,
+        is_option: bool,
+    }
+
+    let mut finfos: Vec<FieldInfo> = Vec::new();
+
+    for field_opts in &fields.fields {
+        let ident = field_opts.ident.clone().ok_or_else(|| {
+            syn::Error::new(
+                field_opts.ty.span(),
+                "GeoParquetRowStruct requires named fields",
+            )
+        })?;
+
+        // Use provided name or default to field identifier
+        let col_name = field_opts.name.clone().unwrap_or_else(|| ident.to_string());
+
+        // Detect Option<T>
+        let (is_option, inner_ty) = match option_inner(&field_opts.ty) {
+            Some(t) => (true, t),
+            None => (false, &field_opts.ty),
+        };
+
+        finfos.push(FieldInfo {
+            ident,
+            col_name,
+            ty: inner_ty.clone(),
+            is_option,
+        });
+    }
+
+    // Generate struct fields for DataType::Struct
+    let mut struct_field_tokens = Vec::new();
+
+    for fi in &finfos {
+        let col_name_lit = syn::LitStr::new(&fi.col_name, fi.ident.span());
+        let ty = &fi.ty;
+        let is_option = fi.is_option;
+
+        struct_field_tokens.push(quote! {
+            ::geoparquet_batch_writer::__dep::arrow_schema::Field::new(
+                #col_name_lit,
+                <#ty as ::geoparquet_batch_writer::__dep::ArrowDataType>::data_type(),
+                #is_option
+            )
+        });
+    }
+
+    // Generate array creation for StructArray
+    let mut field_array_tokens_iter_values = Vec::new();
+    let mut field_array_tokens_iter = Vec::new();
+
+    for (idx, fi) in finfos.iter().enumerate() {
+        let ident = &fi.ident;
+        let ty = &fi.ty;
+        let is_option = fi.is_option;
+        let arr_ident = format_ident!("__gp_arr_{}", idx);
+
+        if is_option {
+            // Field is Option<T>, extract Option<T> and use T::from_iter
+            field_array_tokens_iter_values.push(quote! {
+                let field_iter = values.iter().map(|r: &Self| r.#ident.clone());
+                let #arr_ident = <#ty as ::geoparquet_batch_writer::__dep::ArrowDataType>::from_iter(field_iter);
+            });
+            field_array_tokens_iter.push(quote! {
+                let field_iter = values.iter().map(|r: &Self| r.#ident.clone());
+                let #arr_ident = <#ty as ::geoparquet_batch_writer::__dep::ArrowDataType>::from_iter(field_iter);
+            });
+        } else {
+            // Field is T, extract T and use T::from_iter_values
+            field_array_tokens_iter_values.push(quote! {
+                let field_iter = values.iter().map(|r: &Self| r.#ident.clone());
+                let #arr_ident = <#ty as ::geoparquet_batch_writer::__dep::ArrowDataType>::from_iter_values(field_iter);
+            });
+            field_array_tokens_iter.push(quote! {
+                let field_iter = values.iter().map(|r: &Self| r.#ident.clone());
+                let #arr_ident = <#ty as ::geoparquet_batch_writer::__dep::ArrowDataType>::from_iter_values(field_iter);
+            });
+        }
+    }
+
+    let field_array_refs: Vec<_> = (0..finfos.len())
+        .map(|idx| format_ident!("__gp_arr_{}", idx))
+        .collect();
+
+    let expanded = quote! {
+        impl ::geoparquet_batch_writer::__dep::ArrowDataType for #struct_ident
+        where Self: Send + Sync + Clone + 'static
+        {
+            type Array = ::geoparquet_batch_writer::__dep::arrow_array::StructArray;
+
+            fn data_type() -> ::geoparquet_batch_writer::__dep::arrow_schema::DataType {
+                ::geoparquet_batch_writer::__dep::arrow_schema::DataType::Struct(
+                    ::geoparquet_batch_writer::__dep::arrow_schema::Fields::from(vec![
+                        #(#struct_field_tokens),*
+                    ])
+                )
+            }
+
+            fn from_iter_values<I>(iter: I) -> ::std::sync::Arc<Self::Array>
+            where
+                I: IntoIterator<Item = Self>,
+            {
+                let values: Vec<Self> = iter.into_iter().collect();
+                #(#field_array_tokens_iter_values)*
+
+                let field_arrays: Vec<::std::sync::Arc<dyn ::geoparquet_batch_writer::__dep::arrow_array::Array>> = vec![
+                    #(#field_array_refs as ::std::sync::Arc<dyn ::geoparquet_batch_writer::__dep::arrow_array::Array>),*
+                ];
+
+                let fields = match Self::data_type() {
+                    ::geoparquet_batch_writer::__dep::arrow_schema::DataType::Struct(fields) => fields,
+                    _ => unreachable!(),
+                };
+
+                ::std::sync::Arc::new(
+                    ::geoparquet_batch_writer::__dep::arrow_array::StructArray::new(
+                        fields,
+                        field_arrays,
+                        None
+                    )
+                )
+            }
+
+            fn from_iter<I>(iter: I) -> ::std::sync::Arc<Self::Array>
+            where
+                I: IntoIterator<Item = Option<Self>>,
+            {
+                let collected: Vec<_> = iter.into_iter().collect();
+                let len = collected.len();
+
+                // Create validity bitmap for the struct array
+                let mut validity = ::geoparquet_batch_writer::__dep::arrow_array::builder::BooleanBufferBuilder::new(len);
+                let values: Vec<Self> = collected.into_iter().map(|opt| {
+                    match opt {
+                        Some(val) => {
+                            validity.append(true);
+                            val
+                        },
+                        None => {
+                            validity.append(false);
+                            // We need a default value for None cases
+                            // This is a limitation - structs need default values for missing data
+                            ::std::default::Default::default()
+                        }
+                    }
+                }).collect();
+
+                let validity_buffer = validity.finish();
+                #(#field_array_tokens_iter)*
+
+                let field_arrays: Vec<::std::sync::Arc<dyn ::geoparquet_batch_writer::__dep::arrow_array::Array>> = vec![
+                    #(#field_array_refs as ::std::sync::Arc<dyn ::geoparquet_batch_writer::__dep::arrow_array::Array>),*
+                ];
+
+                let fields = match Self::data_type() {
+                    ::geoparquet_batch_writer::__dep::arrow_schema::DataType::Struct(fields) => fields,
+                    _ => unreachable!(),
+                };
+
+                ::std::sync::Arc::new(
+                    ::geoparquet_batch_writer::__dep::arrow_array::StructArray::new(
+                        fields,
+                        field_arrays,
+                        Some(validity_buffer.into())
+                    )
+                )
             }
         }
     };
@@ -362,6 +564,21 @@ fn option_inner(ty: &Type) -> Option<&Type> {
     if let Type::Path(tp) = ty {
         if let Some(seg) = tp.path.segments.last() {
             if seg.ident == "Option" {
+                if let PathArguments::AngleBracketed(args) = &seg.arguments {
+                    if let Some(syn::GenericArgument::Type(inner)) = args.args.first() {
+                        return Some(inner);
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+fn vec_inner(ty: &Type) -> Option<&Type> {
+    if let Type::Path(tp) = ty {
+        if let Some(seg) = tp.path.segments.last() {
+            if seg.ident == "Vec" {
                 if let PathArguments::AngleBracketed(args) = &seg.arguments {
                     if let Some(syn::GenericArgument::Type(inner)) = args.args.first() {
                         return Some(inner);
@@ -403,110 +620,225 @@ fn geometry_kind(ty: &Type) -> Option<GeometryKind> {
 }
 
 fn arrow_datatype(ty: &Type) -> syn::Result<proc_macro2::TokenStream> {
-    Ok(match type_name(ty).as_str() {
-        "u64" => quote!(::geoparquet_batch_writer::__dep::arrow_schema::DataType::UInt64),
-        "i64" => quote!(::geoparquet_batch_writer::__dep::arrow_schema::DataType::Int64),
-        "u32" => quote!(::geoparquet_batch_writer::__dep::arrow_schema::DataType::UInt32),
-        "i32" => quote!(::geoparquet_batch_writer::__dep::arrow_schema::DataType::Int32),
-        "f64" => quote!(::geoparquet_batch_writer::__dep::arrow_schema::DataType::Float64),
-        "f32" => quote!(::geoparquet_batch_writer::__dep::arrow_schema::DataType::Float32),
-        "bool" => quote!(::geoparquet_batch_writer::__dep::arrow_schema::DataType::Boolean),
-        "String" => quote!(::geoparquet_batch_writer::__dep::arrow_schema::DataType::Utf8),
-        other => {
-            return Err(syn::Error::new(
-                ty.span(),
-                format!("Unsupported field type `{}`", other),
-            ));
-        }
-    })
+    // Check if this is a Vec<T> type
+    if let Some(inner_ty) = vec_inner(ty) {
+        let inner_dt = arrow_datatype(inner_ty)?;
+        return Ok(quote!(
+            ::geoparquet_batch_writer::__dep::arrow_schema::DataType::List(
+                ::std::sync::Arc::new(
+                    ::geoparquet_batch_writer::__dep::arrow_schema::Field::new(
+                        "item",
+                        #inner_dt,
+                        true
+                    )
+                )
+            )
+        ));
+    }
+
+    // Use the ArrowDataType trait to get the data type
+    Ok(quote!(<#ty as ::geoparquet_batch_writer::__dep::ArrowDataType>::data_type()))
 }
 
 fn array_ctor(
     ty: &Type,
     is_option: bool,
 ) -> syn::Result<(proc_macro2::TokenStream, proc_macro2::TokenStream)> {
-    let t = type_name(ty);
-    let (arr_ty, from_vals, from_opts): (_, _, _) = match t.as_str() {
-        "u64" => (
-            quote!(::geoparquet_batch_writer::__dep::arrow_array::UInt64Array),
-            quote!(
-                ::geoparquet_batch_writer::__dep::arrow_array::UInt64Array::from_iter_values(it)
-            ),
-            quote!(::geoparquet_batch_writer::__dep::arrow_array::UInt64Array::from_iter(it)),
-        ),
-        "i64" => (
-            quote!(::geoparquet_batch_writer::__dep::arrow_array::Int64Array),
-            quote!(::geoparquet_batch_writer::__dep::arrow_array::Int64Array::from_iter_values(it)),
-            quote!(::geoparquet_batch_writer::__dep::arrow_array::Int64Array::from_iter(it)),
-        ),
-        "u32" => (
-            quote!(::geoparquet_batch_writer::__dep::arrow_array::UInt32Array),
-            quote!(
-                ::geoparquet_batch_writer::__dep::arrow_array::UInt32Array::from_iter_values(it)
-            ),
-            quote!(::geoparquet_batch_writer::__dep::arrow_array::UInt32Array::from_iter(it)),
-        ),
-        "i32" => (
-            quote!(::geoparquet_batch_writer::__dep::arrow_array::Int32Array),
-            quote!(::geoparquet_batch_writer::__dep::arrow_array::Int32Array::from_iter_values(it)),
-            quote!(::geoparquet_batch_writer::__dep::arrow_array::Int32Array::from_iter(it)),
-        ),
-        "f64" => (
-            quote!(::geoparquet_batch_writer::__dep::arrow_array::Float64Array),
-            quote!(
-                ::geoparquet_batch_writer::__dep::arrow_array::Float64Array::from_iter_values(it)
-            ),
-            quote!(::geoparquet_batch_writer::__dep::arrow_array::Float64Array::from_iter(it)),
-        ),
-        "f32" => (
-            quote!(::geoparquet_batch_writer::__dep::arrow_array::Float32Array),
-            quote!(
-                ::geoparquet_batch_writer::__dep::arrow_array::Float32Array::from_iter_values(it)
-            ),
-            quote!(::geoparquet_batch_writer::__dep::arrow_array::Float32Array::from_iter(it)),
-        ),
-        "bool" => (
-            quote!(::geoparquet_batch_writer::__dep::arrow_array::BooleanArray),
-            quote!(
-                ::geoparquet_batch_writer::__dep::arrow_array::BooleanArray::from_iter_values(it)
-            ),
-            quote!(::geoparquet_batch_writer::__dep::arrow_array::BooleanArray::from_iter(it)),
-        ),
-        "String" => (
-            quote!(::geoparquet_batch_writer::__dep::arrow_array::StringArray),
-            quote!(
-                ::geoparquet_batch_writer::__dep::arrow_array::StringArray::from_iter_values(it)
-            ),
-            quote!(::geoparquet_batch_writer::__dep::arrow_array::StringArray::from_iter(it)),
-        ),
-        other => {
-            return Err(syn::Error::new(
-                ty.span(),
-                format!("Unsupported field type `{}`", other),
+    // Check if this is a Vec<T> type
+    if let Some(inner_ty) = vec_inner(ty) {
+        let inner_type_name = type_name(inner_ty);
+
+        // First try primitive types with specific builders for better performance
+        let primitive_builder = match inner_type_name.as_str() {
+            "u64" => Some((
+                quote!(::geoparquet_batch_writer::__dep::arrow_array::builder::UInt64Builder),
+                quote!(values.append_value(*val)),
+            )),
+            "i64" => Some((
+                quote!(::geoparquet_batch_writer::__dep::arrow_array::builder::Int64Builder),
+                quote!(values.append_value(*val)),
+            )),
+            "u32" => Some((
+                quote!(::geoparquet_batch_writer::__dep::arrow_array::builder::UInt32Builder),
+                quote!(values.append_value(*val)),
+            )),
+            "i32" => Some((
+                quote!(::geoparquet_batch_writer::__dep::arrow_array::builder::Int32Builder),
+                quote!(values.append_value(*val)),
+            )),
+            "f64" => Some((
+                quote!(::geoparquet_batch_writer::__dep::arrow_array::builder::Float64Builder),
+                quote!(values.append_value(*val)),
+            )),
+            "f32" => Some((
+                quote!(::geoparquet_batch_writer::__dep::arrow_array::builder::Float32Builder),
+                quote!(values.append_value(*val)),
+            )),
+            "bool" => Some((
+                quote!(::geoparquet_batch_writer::__dep::arrow_array::builder::BooleanBuilder),
+                quote!(values.append_value(*val)),
+            )),
+            "String" => Some((
+                quote!(::geoparquet_batch_writer::__dep::arrow_array::builder::StringBuilder),
+                quote!(values.append_value(val)),
+            )),
+            _ => None,
+        };
+
+        if let Some((values_builder_type, values_append)) = primitive_builder {
+            let list_construction = if is_option {
+                quote! {
+                    {
+                        let mut builder = ::geoparquet_batch_writer::__dep::arrow_array::builder::ListBuilder::new(#values_builder_type::new());
+                        for opt_vec in it {
+                            if let Some(vec_val) = opt_vec {
+                                let values = builder.values();
+                                for val in vec_val {
+                                    #values_append;
+                                }
+                                builder.append(true);
+                            } else {
+                                builder.append(false);
+                            }
+                        }
+                        builder.finish()
+                    }
+                }
+            } else {
+                quote! {
+                    {
+                        let mut builder = ::geoparquet_batch_writer::__dep::arrow_array::builder::ListBuilder::new(#values_builder_type::new());
+                        for vec_val in it {
+                            let values = builder.values();
+                            for val in vec_val {
+                                #values_append;
+                            }
+                            builder.append(true);
+                        }
+                        builder.finish()
+                    }
+                }
+            };
+
+            return Ok((
+                quote!(::geoparquet_batch_writer::__dep::arrow_array::ListArray),
+                quote! { ::std::sync::Arc::new(#list_construction) },
             ));
         }
+
+        // For complex types that implement ArrowDataType, use a builder-based approach
+        let list_construction = if is_option {
+            quote! {
+                {
+                    // Collect the iterator once to avoid use-after-move issues
+                    let all_list_values: Vec<_> = it.collect();
+
+                    // Now create a simple list array by concatenating all values and tracking offsets
+                    let mut all_values = Vec::new();
+                    let mut validity = ::geoparquet_batch_writer::__dep::arrow_array::builder::BooleanBufferBuilder::new(all_list_values.len());
+
+                    for list_opt in &all_list_values {
+                        match list_opt {
+                            Some(vec_val) => {
+                                validity.append(true);
+                                all_values.extend(vec_val.iter().cloned());
+                            }
+                            None => {
+                                validity.append(false);
+                                // No values to add for null case
+                            }
+                        }
+                    }
+
+                    let values_array = <#inner_ty as ::geoparquet_batch_writer::__dep::ArrowDataType>::from_iter_values(all_values);
+                    let validity_buffer = validity.finish();
+
+                    // Use try_new instead of new_unchecked
+                    ::geoparquet_batch_writer::__dep::arrow_array::ListArray::try_new(
+                        ::std::sync::Arc::new(::geoparquet_batch_writer::__dep::arrow_schema::Field::new(
+                            "item",
+                            <#inner_ty as ::geoparquet_batch_writer::__dep::ArrowDataType>::data_type(),
+                            true
+                        )),
+                        ::geoparquet_batch_writer::__dep::arrow_buffer::OffsetBuffer::from_lengths(
+                            all_list_values.iter().map(|opt| {
+                                opt.as_ref().map(|v| v.len()).unwrap_or(0)
+                            })
+                        ),
+                        values_array,
+                        Some(validity_buffer.into())
+                    ).unwrap()
+                }
+            }
+        } else {
+            quote! {
+                {
+                    let all_vecs: Vec<_> = it.collect();
+                    let mut all_values = Vec::new();
+
+                    for vec_val in &all_vecs {
+                        all_values.extend(vec_val.iter().cloned());
+                    }
+
+                    let values_array = <#inner_ty as ::geoparquet_batch_writer::__dep::ArrowDataType>::from_iter_values(all_values);
+
+                    ::geoparquet_batch_writer::__dep::arrow_array::ListArray::try_new(
+                        ::std::sync::Arc::new(::geoparquet_batch_writer::__dep::arrow_schema::Field::new(
+                            "item",
+                            <#inner_ty as ::geoparquet_batch_writer::__dep::ArrowDataType>::data_type(),
+                            true
+                        )),
+                        ::geoparquet_batch_writer::__dep::arrow_buffer::OffsetBuffer::from_lengths(
+                            all_vecs.iter().map(|v| v.len())
+                        ),
+                        values_array,
+                        None
+                    ).unwrap()
+                }
+            }
+        };
+        return Ok((
+            quote!(::geoparquet_batch_writer::__dep::arrow_array::ListArray),
+            quote! { ::std::sync::Arc::new(#list_construction) },
+        ));
+    }
+
+    // Use the ArrowDataType trait for array construction
+    let arr_ty = quote!(<#ty as ::geoparquet_batch_writer::__dep::ArrowDataType>::Array);
+    let from = if is_option {
+        quote!(<#ty as ::geoparquet_batch_writer::__dep::ArrowDataType>::from_iter(it))
+    } else {
+        quote!(<#ty as ::geoparquet_batch_writer::__dep::ArrowDataType>::from_iter_values(it))
     };
-    let from = if is_option { from_opts } else { from_vals };
-    Ok((arr_ty, quote! { ::std::sync::Arc::new(#from) }))
+    Ok((arr_ty, from))
 }
 
 fn value_mapper(ty: &Type, ident: &Ident, is_option: bool) -> proc_macro2::TokenStream {
-    let t = type_name(ty);
-    if t == "String" {
+    // Check if this is a Vec<T> type
+    if vec_inner(ty).is_some() {
         if is_option {
-            quote!(|r: &Self| r.#ident.as_deref())
+            quote!(|r: &Self| r.#ident.as_ref())
         } else {
-            quote!(|r: &Self| r.#ident.as_str())
-        }
-    } else if is_copy_scalar(&t) {
-        if is_option {
-            quote!(|r: &Self| r.#ident)
-        } else {
-            quote!(|r: &Self| r.#ident)
+            quote!(|r: &Self| &r.#ident)
         }
     } else {
-        // Shouldn't happen given our supported types
-        quote!(|r: &Self| r.#ident)
+        let t = type_name(ty);
+        if t == "String" {
+            if is_option {
+                quote!(|r: &Self| r.#ident.as_ref().map(|s| s.clone()))
+            } else {
+                quote!(|r: &Self| r.#ident.clone())
+            }
+        } else if is_copy_scalar(&t) {
+            if is_option {
+                quote!(|r: &Self| r.#ident)
+            } else {
+                quote!(|r: &Self| r.#ident)
+            }
+        } else {
+            // Shouldn't happen given our supported types
+            quote!(|r: &Self| r.#ident)
+        }
     }
 }
 

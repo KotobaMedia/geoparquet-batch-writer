@@ -1,7 +1,7 @@
 use anyhow::{Ok, Result, anyhow};
 use clap::Parser;
 use geo_types::Point;
-use geoparquet_batch_writer::{GeoParquetBatchWriter, GeoParquetRowData};
+use geoparquet_batch_writer::{GeoParquetBatchWriter, GeoParquetRowData, GeoParquetRowStruct};
 use rand::prelude::*;
 use std::path::{Path, PathBuf};
 
@@ -53,11 +53,18 @@ fn generate_random_points(count: usize, bbox: (f64, f64, f64, f64)) -> Vec<Point
         .collect()
 }
 
-#[derive(Clone, GeoParquetRowData)]
+#[derive(Clone, Default, GeoParquetRowStruct)]
+struct RowDetail {
+    detail: String,
+    something: u64,
+}
+
+#[derive(GeoParquetRowData)]
 struct DataRow {
     id: u64,
     geometry: Point<f64>,
     name: String,
+    detail: Vec<RowDetail>,
 }
 
 fn main() -> Result<()> {
@@ -85,6 +92,10 @@ fn main() -> Result<()> {
             id: i as u64,
             geometry: point,
             name: format!("Point {}", i),
+            detail: vec![RowDetail {
+                detail: format!("Detail for point {}", i),
+                something: i as u64,
+            }],
         };
         writer.add_row(row)?;
     }

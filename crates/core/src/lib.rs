@@ -1,21 +1,229 @@
 use std::{fs::File, io::BufWriter, path::Path, sync::Arc};
 
 use arrow_array::{Array, RecordBatch};
-use arrow_schema::Schema;
+use arrow_schema::{DataType, Schema};
 use geoparquet::writer::{GeoParquetRecordBatchEncoder, GeoParquetWriterOptionsBuilder};
 use parquet::arrow::ArrowWriter;
 
 pub use error::{GeoParquetBatchWriterError, Result};
-pub use geoparquet_batch_writer_derive::GeoParquetRowData;
+pub use geoparquet_batch_writer_derive::{GeoParquetRowData, GeoParquetRowStruct};
 
 mod error;
+
+/// Trait for types that can be represented as Arrow data types and arrays.
+///
+/// This trait allows custom types to define how they should be converted to Arrow
+/// schemas and arrays, making the system extensible for new data types.
+///
+/// Similar to how serde works, this trait can be implemented by downstream crates
+/// to support custom types in GeoParquet files.
+pub trait ArrowDataType: Send + Sync + 'static {
+    /// The Arrow array type that represents this data type
+    type Array: Array + 'static;
+
+    /// Get the Arrow DataType for this type
+    fn data_type() -> DataType;
+
+    /// Create an Arrow array from an iterator of values (non-nullable)
+    fn from_iter_values<I>(iter: I) -> Arc<Self::Array>
+    where
+        I: IntoIterator<Item = Self>,
+        Self: Sized;
+
+    /// Create an Arrow array from an iterator of optional values (nullable)
+    fn from_iter<I>(iter: I) -> Arc<Self::Array>
+    where
+        I: IntoIterator<Item = Option<Self>>,
+        Self: Sized;
+}
+
+// Implementations for primitive types
+use arrow_array::*;
+
+impl ArrowDataType for u64 {
+    type Array = UInt64Array;
+
+    fn data_type() -> DataType {
+        DataType::UInt64
+    }
+
+    fn from_iter_values<I>(iter: I) -> Arc<Self::Array>
+    where
+        I: IntoIterator<Item = Self>,
+    {
+        Arc::new(UInt64Array::from_iter_values(iter))
+    }
+
+    fn from_iter<I>(iter: I) -> Arc<Self::Array>
+    where
+        I: IntoIterator<Item = Option<Self>>,
+    {
+        Arc::new(UInt64Array::from_iter(iter))
+    }
+}
+
+impl ArrowDataType for i64 {
+    type Array = Int64Array;
+
+    fn data_type() -> DataType {
+        DataType::Int64
+    }
+
+    fn from_iter_values<I>(iter: I) -> Arc<Self::Array>
+    where
+        I: IntoIterator<Item = Self>,
+    {
+        Arc::new(Int64Array::from_iter_values(iter))
+    }
+
+    fn from_iter<I>(iter: I) -> Arc<Self::Array>
+    where
+        I: IntoIterator<Item = Option<Self>>,
+    {
+        Arc::new(Int64Array::from_iter(iter))
+    }
+}
+
+impl ArrowDataType for u32 {
+    type Array = UInt32Array;
+
+    fn data_type() -> DataType {
+        DataType::UInt32
+    }
+
+    fn from_iter_values<I>(iter: I) -> Arc<Self::Array>
+    where
+        I: IntoIterator<Item = Self>,
+    {
+        Arc::new(UInt32Array::from_iter_values(iter))
+    }
+
+    fn from_iter<I>(iter: I) -> Arc<Self::Array>
+    where
+        I: IntoIterator<Item = Option<Self>>,
+    {
+        Arc::new(UInt32Array::from_iter(iter))
+    }
+}
+
+impl ArrowDataType for i32 {
+    type Array = Int32Array;
+
+    fn data_type() -> DataType {
+        DataType::Int32
+    }
+
+    fn from_iter_values<I>(iter: I) -> Arc<Self::Array>
+    where
+        I: IntoIterator<Item = Self>,
+    {
+        Arc::new(Int32Array::from_iter_values(iter))
+    }
+
+    fn from_iter<I>(iter: I) -> Arc<Self::Array>
+    where
+        I: IntoIterator<Item = Option<Self>>,
+    {
+        Arc::new(Int32Array::from_iter(iter))
+    }
+}
+
+impl ArrowDataType for f64 {
+    type Array = Float64Array;
+
+    fn data_type() -> DataType {
+        DataType::Float64
+    }
+
+    fn from_iter_values<I>(iter: I) -> Arc<Self::Array>
+    where
+        I: IntoIterator<Item = Self>,
+    {
+        Arc::new(Float64Array::from_iter_values(iter))
+    }
+
+    fn from_iter<I>(iter: I) -> Arc<Self::Array>
+    where
+        I: IntoIterator<Item = Option<Self>>,
+    {
+        Arc::new(Float64Array::from_iter(iter))
+    }
+}
+
+impl ArrowDataType for f32 {
+    type Array = Float32Array;
+
+    fn data_type() -> DataType {
+        DataType::Float32
+    }
+
+    fn from_iter_values<I>(iter: I) -> Arc<Self::Array>
+    where
+        I: IntoIterator<Item = Self>,
+    {
+        Arc::new(Float32Array::from_iter_values(iter))
+    }
+
+    fn from_iter<I>(iter: I) -> Arc<Self::Array>
+    where
+        I: IntoIterator<Item = Option<Self>>,
+    {
+        Arc::new(Float32Array::from_iter(iter))
+    }
+}
+
+impl ArrowDataType for bool {
+    type Array = BooleanArray;
+
+    fn data_type() -> DataType {
+        DataType::Boolean
+    }
+
+    fn from_iter_values<I>(iter: I) -> Arc<Self::Array>
+    where
+        I: IntoIterator<Item = Self>,
+    {
+        Arc::new(BooleanArray::from(iter.into_iter().collect::<Vec<_>>()))
+    }
+
+    fn from_iter<I>(iter: I) -> Arc<Self::Array>
+    where
+        I: IntoIterator<Item = Option<Self>>,
+    {
+        Arc::new(BooleanArray::from_iter(iter))
+    }
+}
+
+impl ArrowDataType for String {
+    type Array = StringArray;
+
+    fn data_type() -> DataType {
+        DataType::Utf8
+    }
+
+    fn from_iter_values<I>(iter: I) -> Arc<Self::Array>
+    where
+        I: IntoIterator<Item = Self>,
+    {
+        Arc::new(StringArray::from_iter_values(iter))
+    }
+
+    fn from_iter<I>(iter: I) -> Arc<Self::Array>
+    where
+        I: IntoIterator<Item = Option<Self>>,
+    {
+        Arc::new(StringArray::from_iter(iter))
+    }
+}
 
 /// Internal re-exports used by the proc-macro expansion.
 /// This lets downstream users only depend on `geoparquet-batch-writer`.
 #[doc(hidden)]
 pub mod __dep {
+    pub use crate::ArrowDataType;
     pub use crate::error::{GeoParquetBatchWriterError, Result};
     pub use arrow_array;
+    pub use arrow_buffer;
     pub use arrow_schema;
     pub use geoarrow_array;
     pub use geoarrow_schema;
