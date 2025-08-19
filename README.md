@@ -50,7 +50,7 @@ struct Row {
 fn main() -> Result<()> {
     let mut w: GeoParquetBatchWriter<Row> = GeoParquetBatchWriter::new(
         "output.parquet",
-        BatchConfig { max_rows_per_batch: 10_000 },
+        Default::default(),
     )?;
 
     for i in 0..25_000u64 {

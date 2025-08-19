@@ -239,7 +239,7 @@ pub struct BatchConfig {
 impl Default for BatchConfig {
     fn default() -> Self {
         Self {
-            max_rows_per_batch: 10_000, // Default to 10k rows per batch
+            max_rows_per_batch: 1_000_000, // Default to 1m rows per batch
         }
     }
 }
