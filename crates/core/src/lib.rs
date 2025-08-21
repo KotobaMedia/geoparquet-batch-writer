@@ -128,6 +128,94 @@ impl ArrowDataType for i32 {
     }
 }
 
+impl ArrowDataType for u16 {
+    type Array = UInt16Array;
+
+    fn data_type() -> DataType {
+        DataType::UInt16
+    }
+
+    fn from_iter_values<I>(iter: I) -> Arc<Self::Array>
+    where
+        I: IntoIterator<Item = Self>,
+    {
+        Arc::new(UInt16Array::from_iter_values(iter))
+    }
+
+    fn from_iter<I>(iter: I) -> Arc<Self::Array>
+    where
+        I: IntoIterator<Item = Option<Self>>,
+    {
+        Arc::new(UInt16Array::from_iter(iter))
+    }
+}
+
+impl ArrowDataType for i16 {
+    type Array = Int16Array;
+
+    fn data_type() -> DataType {
+        DataType::Int16
+    }
+
+    fn from_iter_values<I>(iter: I) -> Arc<Self::Array>
+    where
+        I: IntoIterator<Item = Self>,
+    {
+        Arc::new(Int16Array::from_iter_values(iter))
+    }
+
+    fn from_iter<I>(iter: I) -> Arc<Self::Array>
+    where
+        I: IntoIterator<Item = Option<Self>>,
+    {
+        Arc::new(Int16Array::from_iter(iter))
+    }
+}
+
+impl ArrowDataType for u8 {
+    type Array = UInt8Array;
+
+    fn data_type() -> DataType {
+        DataType::UInt8
+    }
+
+    fn from_iter_values<I>(iter: I) -> Arc<Self::Array>
+    where
+        I: IntoIterator<Item = Self>,
+    {
+        Arc::new(UInt8Array::from_iter_values(iter))
+    }
+
+    fn from_iter<I>(iter: I) -> Arc<Self::Array>
+    where
+        I: IntoIterator<Item = Option<Self>>,
+    {
+        Arc::new(UInt8Array::from_iter(iter))
+    }
+}
+
+impl ArrowDataType for i8 {
+    type Array = Int8Array;
+
+    fn data_type() -> DataType {
+        DataType::Int8
+    }
+
+    fn from_iter_values<I>(iter: I) -> Arc<Self::Array>
+    where
+        I: IntoIterator<Item = Self>,
+    {
+        Arc::new(Int8Array::from_iter_values(iter))
+    }
+
+    fn from_iter<I>(iter: I) -> Arc<Self::Array>
+    where
+        I: IntoIterator<Item = Option<Self>>,
+    {
+        Arc::new(Int8Array::from_iter(iter))
+    }
+}
+
 impl ArrowDataType for f64 {
     type Array = Float64Array;
 
