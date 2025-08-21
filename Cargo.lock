@@ -945,7 +945,7 @@ dependencies = [
 
 [[package]]
 name = "geoparquet-batch-writer"
-version = "0.1.2"
+version = "0.1.4"
 dependencies = [
  "anyhow",
  "arrow-array 56.0.0",
@@ -964,7 +964,7 @@ dependencies = [
 
 [[package]]
 name = "geoparquet-batch-writer-derive"
-version = "0.1.2"
+version = "0.1.4"
 dependencies = [
  "darling 0.21.1",
  "proc-macro2",
