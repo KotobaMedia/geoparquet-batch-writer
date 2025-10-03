@@ -22,6 +22,8 @@ jobs:
       - name: Set up Rust (stable)
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
+          # Fix to 1.89.0 until https://github.com/rust-lang/rust/issues/131960 is solved
+          toolchain: 1.89.0
           components: clippy, rustfmt
 
       - name: Rust fmt check
