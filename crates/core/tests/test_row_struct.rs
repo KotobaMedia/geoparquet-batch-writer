@@ -1,6 +1,6 @@
-use geoparquet_batch_writer::{ArrowDataType, GeoParquetRowStruct};
-use arrow_schema::DataType;
 use arrow_array::Array;
+use arrow_schema::DataType;
+use geoparquet_batch_writer::{ArrowDataType, GeoParquetRowStruct};
 
 #[derive(GeoParquetRowStruct, Clone, Default)]
 struct SimpleStruct {
@@ -40,7 +40,7 @@ fn test_simple_struct_datatype() {
             assert_eq!(fields[2].name(), "value");
             assert_eq!(fields[2].data_type(), &DataType::Float64);
             assert!(!fields[2].is_nullable());
-        },
+        }
         _ => panic!("Expected Struct data type"),
     }
 }
@@ -59,7 +59,7 @@ fn test_optional_fields_struct_datatype() {
 
             assert_eq!(fields[2].name(), "value");
             assert!(fields[2].is_nullable());
-        },
+        }
         _ => panic!("Expected Struct data type"),
     }
 }
@@ -72,7 +72,7 @@ fn test_custom_name_struct_datatype() {
             assert_eq!(fields.len(), 2);
             assert_eq!(fields[0].name(), "id");
             assert_eq!(fields[1].name(), "display_name");
-        },
+        }
         _ => panic!("Expected Struct data type"),
     }
 }
@@ -80,8 +80,16 @@ fn test_custom_name_struct_datatype() {
 #[test]
 fn test_simple_struct_from_iter_values() {
     let data = vec![
-        SimpleStruct { id: 1, name: "Alice".to_string(), value: 3.14 },
-        SimpleStruct { id: 2, name: "Bob".to_string(), value: 2.71 },
+        SimpleStruct {
+            id: 1,
+            name: "Alice".to_string(),
+            value: 3.14,
+        },
+        SimpleStruct {
+            id: 2,
+            name: "Bob".to_string(),
+            value: 2.71,
+        },
     ];
 
     let array = SimpleStruct::from_iter_values(data.clone());
@@ -95,9 +103,17 @@ fn test_simple_struct_from_iter_values() {
 #[test]
 fn test_optional_struct_from_iter() {
     let data = vec![
-        Some(OptionalFieldsStruct { id: 1, name: Some("Alice".to_string()), value: Some(3.14) }),
+        Some(OptionalFieldsStruct {
+            id: 1,
+            name: Some("Alice".to_string()),
+            value: Some(3.14),
+        }),
         None,
-        Some(OptionalFieldsStruct { id: 3, name: None, value: Some(2.71) }),
+        Some(OptionalFieldsStruct {
+            id: 3,
+            name: None,
+            value: Some(2.71),
+        }),
     ];
 
     let array = OptionalFieldsStruct::from_iter(data);
@@ -107,7 +123,7 @@ fn test_optional_struct_from_iter() {
     // Check nullability - the second element should be null
     let nulls = array.nulls().unwrap();
     assert!(!nulls.is_null(0)); // first element is not null
-    assert!(nulls.is_null(1));  // second element is null
+    assert!(nulls.is_null(1)); // second element is null
     assert!(!nulls.is_null(2)); // third element is not null
 }
 
@@ -134,7 +150,7 @@ fn test_darling_custom_attribute_parsing() {
             assert!(!fields[0].is_nullable());
             assert!(!fields[1].is_nullable());
             assert!(fields[2].is_nullable());
-        },
+        }
         _ => panic!("Expected Struct data type"),
     }
 }

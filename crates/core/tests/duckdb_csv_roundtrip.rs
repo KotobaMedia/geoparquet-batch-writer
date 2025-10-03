@@ -26,24 +26,41 @@ fn tmp_files(prefix: &str) -> TmpPath {
     parquet.push(format!("{prefix}.parquet"));
     let mut csv = dir.path().to_path_buf();
     csv.push(format!("{prefix}.csv"));
-    TmpPath { _dir: dir, parquet, csv }
+    TmpPath {
+        _dir: dir,
+        parquet,
+        csv,
+    }
 }
-
 
 #[test]
 fn write_parquet_export_csv_with_duckdb_and_compare() -> Result<()> {
     // Prepare small dataset
     let rows = vec![
-        RowPoint { id: 1, name: "a".into(), geom: Point::new(1.0, 2.0) },
-        RowPoint { id: 2, name: "b".into(), geom: Point::new(-3.5, 4.25) },
-        RowPoint { id: 3, name: "c".into(), geom: Point::new(0.0, 0.0) },
+        RowPoint {
+            id: 1,
+            name: "a".into(),
+            geom: Point::new(1.0, 2.0),
+        },
+        RowPoint {
+            id: 2,
+            name: "b".into(),
+            geom: Point::new(-3.5, 4.25),
+        },
+        RowPoint {
+            id: 3,
+            name: "c".into(),
+            geom: Point::new(0.0, 0.0),
+        },
     ];
 
     // Write parquet
     let tmp = tmp_files("duckdb_roundtrip");
     let mut writer: GeoParquetBatchWriter<RowPoint> = GeoParquetBatchWriter::new(
         &tmp.parquet,
-        BatchConfig { max_rows_per_batch: 2 },
+        BatchConfig {
+            max_rows_per_batch: 2,
+        },
     )?;
     writer.add_rows(rows.into_iter())?;
     writer.finish()?;
