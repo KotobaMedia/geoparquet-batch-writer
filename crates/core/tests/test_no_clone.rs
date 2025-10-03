@@ -12,7 +12,8 @@ struct NonCloneableRow {
 
 #[test]
 fn test_no_clone_requirement() {
-    let mut writer = GeoParquetBatchWriter::new("/tmp/test_no_clone.parquet", Default::default()).unwrap();
+    let mut writer =
+        GeoParquetBatchWriter::new("/tmp/test_no_clone.parquet", Default::default()).unwrap();
 
     // Create a row - this works without Clone
     let row = NonCloneableRow {

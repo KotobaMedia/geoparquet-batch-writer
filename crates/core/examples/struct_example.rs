@@ -1,6 +1,6 @@
-use geoparquet_batch_writer::{ArrowDataType, GeoParquetRowStruct};
-use arrow_schema::DataType;
 use arrow_array::Array;
+use arrow_schema::DataType;
+use geoparquet_batch_writer::{ArrowDataType, GeoParquetRowStruct};
 
 /// Example showing the GeoParquetRowStruct derive macro in action
 #[derive(GeoParquetRowStruct, Clone, Default, Debug)]
@@ -44,9 +44,10 @@ fn main() {
         DataType::Struct(fields) => {
             println!("\nStruct Fields:");
             for field in fields.iter() {
-                println!("  - {}: {:?} (nullable: {})", 
-                    field.name(), 
-                    field.data_type(), 
+                println!(
+                    "  - {}: {:?} (nullable: {})",
+                    field.name(),
+                    field.data_type(),
                     field.is_nullable()
                 );
             }
@@ -59,13 +60,12 @@ fn main() {
     println!("\nCreated StructArray with {} rows", struct_array.len());
 
     // Test with nullable structs (some None values)
-    let nullable_people = vec![
-        Some(people[0].clone()),
-        None,
-        Some(people[2].clone()),
-    ];
+    let nullable_people = vec![Some(people[0].clone()), None, Some(people[2].clone())];
 
     let nullable_struct_array = Person::from_iter(nullable_people);
-    println!("Created nullable StructArray with {} rows", nullable_struct_array.len());
+    println!(
+        "Created nullable StructArray with {} rows",
+        nullable_struct_array.len()
+    );
     println!("Has nulls: {:?}", nullable_struct_array.nulls().is_some());
 }
