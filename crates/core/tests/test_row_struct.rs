@@ -83,7 +83,7 @@ fn test_simple_struct_from_iter_values() {
         SimpleStruct {
             id: 1,
             name: "Alice".to_string(),
-            value: 3.14,
+            value: 1.94,
         },
         SimpleStruct {
             id: 2,
@@ -106,7 +106,7 @@ fn test_optional_struct_from_iter() {
         Some(OptionalFieldsStruct {
             id: 1,
             name: Some("Alice".to_string()),
-            value: Some(3.14),
+            value: Some(1.94),
         }),
         None,
         Some(OptionalFieldsStruct {

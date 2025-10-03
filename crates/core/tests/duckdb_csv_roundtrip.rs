@@ -67,8 +67,8 @@ fn write_parquet_export_csv_with_duckdb_and_compare() -> Result<()> {
 
     // Use DuckDB to export to CSV, with geometry as lowercase hex to avoid case-mismatch
     let conn = Connection::open_in_memory()?;
-    let parquet_path = tmp.parquet.to_str().unwrap().replace('"', "\"");
-    let csv_path = tmp.csv.to_str().unwrap().replace('"', "\"");
+    let parquet_path = tmp.parquet.to_str().unwrap();
+    let csv_path = tmp.csv.to_str().unwrap();
     let sql = format!(
         "COPY (SELECT id, name, lower(hex(geom)) AS geom FROM read_parquet('{}') ORDER BY id) TO '{}' WITH (HEADER, DELIMITER ',');",
         parquet_path, csv_path

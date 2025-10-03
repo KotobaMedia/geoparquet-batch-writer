@@ -63,7 +63,7 @@ pub fn derive_geo_parquet_row_struct(input: TokenStream) -> TokenStream {
 
 fn impl_geoparquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
     // Parse attributes using darling
-    let opts = GeoParquetOpts::from_derive_input(input).map_err(|e| syn::Error::from(e))?;
+    let opts = GeoParquetOpts::from_derive_input(input).map_err(syn::Error::from)?;
 
     let struct_ident = &opts.ident;
 
@@ -369,7 +369,7 @@ fn impl_geoparquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
 
 fn impl_geoparquet_row_struct(input: &DeriveInput) -> syn::Result<TokenStream> {
     // Parse attributes using darling
-    let opts = GeoParquetOpts::from_derive_input(input).map_err(|e| syn::Error::from(e))?;
+    let opts = GeoParquetOpts::from_derive_input(input).map_err(syn::Error::from)?;
 
     let struct_ident = &opts.ident;
 
@@ -561,59 +561,51 @@ fn impl_geoparquet_row_struct(input: &DeriveInput) -> syn::Result<TokenStream> {
 }
 
 fn option_inner(ty: &Type) -> Option<&Type> {
-    if let Type::Path(tp) = ty {
-        if let Some(seg) = tp.path.segments.last() {
-            if seg.ident == "Option" {
-                if let PathArguments::AngleBracketed(args) = &seg.arguments {
-                    if let Some(syn::GenericArgument::Type(inner)) = args.args.first() {
-                        return Some(inner);
-                    }
-                }
-            }
-        }
+    if let Type::Path(tp) = ty
+        && let Some(seg) = tp.path.segments.last()
+        && seg.ident == "Option"
+        && let PathArguments::AngleBracketed(args) = &seg.arguments
+        && let Some(syn::GenericArgument::Type(inner)) = args.args.first()
+    {
+        return Some(inner);
     }
     None
 }
 
 fn vec_inner(ty: &Type) -> Option<&Type> {
-    if let Type::Path(tp) = ty {
-        if let Some(seg) = tp.path.segments.last() {
-            if seg.ident == "Vec" {
-                if let PathArguments::AngleBracketed(args) = &seg.arguments {
-                    if let Some(syn::GenericArgument::Type(inner)) = args.args.first() {
-                        return Some(inner);
-                    }
-                }
-            }
-        }
+    if let Type::Path(tp) = ty
+        && let Some(seg) = tp.path.segments.last()
+        && seg.ident == "Vec"
+        && let PathArguments::AngleBracketed(args) = &seg.arguments
+        && let Some(syn::GenericArgument::Type(inner)) = args.args.first()
+    {
+        return Some(inner);
     }
     None
 }
 
 fn geometry_kind(ty: &Type) -> Option<GeometryKind> {
     // Expect something like geo_types::Point<f64>, geo_types::LineString<f64>, etc.
-    if let Type::Path(tp) = ty {
-        if let Some(seg) = tp.path.segments.last() {
-            let name = seg.ident.to_string();
-            if let PathArguments::AngleBracketed(args) = &seg.arguments {
-                if let Some(syn::GenericArgument::Type(Type::Path(inner))) = args.args.first() {
-                    if let Some(seg2) = inner.path.segments.last() {
-                        if seg2.ident == "f64" {
-                            return match name.as_str() {
-                                "Point" => Some(GeometryKind::Point),
-                                "LineString" => Some(GeometryKind::LineString),
-                                "Polygon" => Some(GeometryKind::Polygon),
-                                "MultiPoint" => Some(GeometryKind::MultiPoint),
-                                "MultiLineString" => Some(GeometryKind::MultiLineString),
-                                "MultiPolygon" => Some(GeometryKind::MultiPolygon),
-                                "Geometry" => Some(GeometryKind::Geometry),
-                                "GeometryCollection" => Some(GeometryKind::GeometryCollection),
-                                _ => None,
-                            };
-                        }
-                    }
-                }
-            }
+    if let Type::Path(tp) = ty
+        && let Some(seg) = tp.path.segments.last()
+    {
+        let name = seg.ident.to_string();
+        if let PathArguments::AngleBracketed(args) = &seg.arguments
+            && let Some(syn::GenericArgument::Type(Type::Path(inner))) = args.args.first()
+            && let Some(seg2) = inner.path.segments.last()
+            && seg2.ident == "f64"
+        {
+            return match name.as_str() {
+                "Point" => Some(GeometryKind::Point),
+                "LineString" => Some(GeometryKind::LineString),
+                "Polygon" => Some(GeometryKind::Polygon),
+                "MultiPoint" => Some(GeometryKind::MultiPoint),
+                "MultiLineString" => Some(GeometryKind::MultiLineString),
+                "MultiPolygon" => Some(GeometryKind::MultiPolygon),
+                "Geometry" => Some(GeometryKind::Geometry),
+                "GeometryCollection" => Some(GeometryKind::GeometryCollection),
+                _ => None,
+            };
         }
     }
     None
@@ -830,11 +822,7 @@ fn value_mapper(ty: &Type, ident: &Ident, is_option: bool) -> proc_macro2::Token
                 quote!(|r: &Self| r.#ident.clone())
             }
         } else if is_copy_scalar(&t) {
-            if is_option {
-                quote!(|r: &Self| r.#ident)
-            } else {
-                quote!(|r: &Self| r.#ident)
-            }
+            quote!(|r: &Self| r.#ident)
         } else {
             // Shouldn't happen given our supported types
             quote!(|r: &Self| r.#ident)
@@ -843,10 +831,10 @@ fn value_mapper(ty: &Type, ident: &Ident, is_option: bool) -> proc_macro2::Token
 }
 
 fn type_name(ty: &Type) -> String {
-    if let Type::Path(tp) = ty {
-        if let Some(seg) = tp.path.segments.last() {
-            return seg.ident.to_string();
-        }
+    if let Type::Path(tp) = ty
+        && let Some(seg) = tp.path.segments.last()
+    {
+        return seg.ident.to_string();
     }
     format!("{}", quote!(#ty))
 }
