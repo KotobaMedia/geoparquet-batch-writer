@@ -1,25 +1,25 @@
 use arrow_array::Array;
 use arrow_schema::DataType;
-use geoparquet_batch_writer::{ArrowDataType, GeoParquetRowStruct};
+use geoparquet_batch_writer::{ArrowDataType, ParquetRowStruct};
 
-#[derive(GeoParquetRowStruct, Clone, Default)]
+#[derive(ParquetRowStruct, Clone, Default)]
 struct SimpleStruct {
     id: u64,
     name: String,
     value: f64,
 }
 
-#[derive(GeoParquetRowStruct, Clone, Default)]
+#[derive(ParquetRowStruct, Clone, Default)]
 struct OptionalFieldsStruct {
     id: u64,
     name: Option<String>,
     value: Option<f64>,
 }
 
-#[derive(GeoParquetRowStruct, Clone, Default)]
+#[derive(ParquetRowStruct, Clone, Default)]
 struct CustomNameStruct {
     id: u64,
-    #[geo(name = "display_name")]
+    #[parquet(name = "display_name")]
     name: String,
 }
 
@@ -83,7 +83,7 @@ fn test_simple_struct_from_iter_values() {
         SimpleStruct {
             id: 1,
             name: "Alice".to_string(),
-            value: 1.94,
+            value: 3.14,
         },
         SimpleStruct {
             id: 2,
@@ -106,7 +106,7 @@ fn test_optional_struct_from_iter() {
         Some(OptionalFieldsStruct {
             id: 1,
             name: Some("Alice".to_string()),
-            value: Some(1.94),
+            value: Some(3.14),
         }),
         None,
         Some(OptionalFieldsStruct {
@@ -128,10 +128,10 @@ fn test_optional_struct_from_iter() {
 }
 
 // Test that darling migration is working properly with custom names
-#[derive(GeoParquetRowStruct, Clone, Default)]
+#[derive(ParquetRowStruct, Clone, Default)]
 struct DarlingTestStruct {
     id: u64,
-    #[geo(name = "special_name")]
+    #[parquet(name = "special_name")]
     field_with_custom_name: String,
     optional_field: Option<f64>,
 }

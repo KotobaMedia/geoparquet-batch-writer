@@ -1,12 +1,12 @@
 [package]
 name = "geoparquet-batch-writer"
-description = "A library for convenient batch writing of GeoParquet files"
+description = "A library for convenient batch writing of Parquet and GeoParquet files"
 homepage = "https://github.com/KotobaMedia/geoparquet-batch-writer/"
 repository = "https://github.com/KotobaMedia/geoparquet-batch-writer/"
 version = "0.1.4"
 license = "MIT"
 edition = "2024"
-keywords = ["geoparquet"]
+keywords = ["parquet", "geoparquet", "arrow"]
 publish = true
 
 [dependencies]

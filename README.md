@@ -1,21 +1,22 @@
-# GeoParquet Batch Writer
+# Parquet Batch Writer
 
 [![Crates.io Version](https://img.shields.io/crates/v/geoparquet-batch-writer)](https://crates.io/crates/geoparquet-batch-writer)
 [![docs.rs](https://img.shields.io/docsrs/geoparquet-batch-writer)](https://docs.rs/geoparquet-batch-writer/latest/geoparquet-batch-writer/)
 
-Rust library (plus derive macro) for writing GeoParquet files efficiently in batches using GeoArrow/Arrow. Define a simple row struct with a geometry field, derive `GeoParquetRowData`, and stream rows to an on-disk GeoParquet file.
+Rust library (plus derive macro) for writing Parquet files efficiently in batches using Arrow. Define a row struct, derive `ParquetRowData`, and stream rows to an on-disk Parquet file. If the generated schema contains GeoArrow geometry fields, the writer automatically switches to GeoParquet encoding and metadata.
 
 ## Features
 - Derive macro to turn your struct into Arrow arrays + schema
 - Automatic batching with a configurable `max_rows_per_batch`
+- Automatic GeoParquet output when the schema contains geometry fields
 - Supports geo-types: Point, LineString, Polygon, MultiPoint, MultiLineString, MultiPolygon, Geometry, GeometryCollection (all `f64`)
 - Optional fields via `Option<T>` (including optional geometry)
 - Column rename and geometry dimension hints (XY/XYZ/XYM)
 
 ## Workspace layout
 - `crates/core`: library crate `geoparquet-batch-writer`
-- `crates/derive`: proc-macro crate exporting `#[derive(GeoParquetRowData)]`
-- `crates/example-cli`: example CLI demonstrating how to generate random data and write GeoParquet using the library (not published)
+- `crates/derive`: proc-macro crate exporting `#[derive(ParquetRowData)]`
+- `crates/example-cli`: example CLI demonstrating how geometry rows automatically produce GeoParquet output (not published)
 
 ## Build
 - Prereqs: Rust (stable) with Cargo
@@ -32,23 +33,23 @@ cargo test -q
 
 `cargo add geoparquet-batch-writer`
 
-Add a row type and derive `GeoParquetRowData`. Mark exactly one geometry field with `#[geo(geometry)]`. Optionally rename columns or set geometry dimension.
+Add a row type and derive `ParquetRowData`. Geometry fields are detected automatically from supported `geo-types`, or can be marked explicitly with `#[parquet(geometry)]`. Optionally rename columns or set geometry dimension.
 
 ```rust
 use anyhow::Result;
 use geo_types::Point;
-use geoparquet_batch_writer::{BatchConfig, GeoParquetBatchWriter, GeoParquetRowData};
+use geoparquet_batch_writer::{BatchConfig, ParquetBatchWriter, ParquetRowData};
 
-#[derive(GeoParquetRowData)]
+#[derive(ParquetRowData)]
 struct Row {
     id: u64,
-    #[geo(name = "geom", geometry, dim = "XY")] // XY | XYZ | XYM
+    #[parquet(name = "geom", geometry, dim = "XY")] // XY | XYZ | XYM
     point: Point<f64>,
     note: Option<String>,
 }
 
 fn main() -> Result<()> {
-    let mut w: GeoParquetBatchWriter<Row> = GeoParquetBatchWriter::new(
+    let mut w: ParquetBatchWriter<Row> = ParquetBatchWriter::new(
         "output.parquet",
         Default::default(),
     )?;
@@ -67,7 +68,8 @@ fn main() -> Result<()> {
 ```
 
 Notes
-- Only one geometry field is supported per row at the moment
+- Geometry fields trigger GeoParquet automatically; rows without geometry write plain Parquet
+- Multiple geometry fields are supported
 - Geometry can be optional (`Option<Point<f64>>`) and will produce nulls
 - Non-geometry columns support typical Arrow scalar types (e.g., integers, floats, strings)
 
@@ -85,6 +87,6 @@ cargo run -q -p geoparquet-batch-writer-example-cli -- \
 ```
 
 Flags
-- `--output` (path): where to write the GeoParquet file (default `output.parquet`)
+- `--output` (path): where to write the Parquet file (or GeoParquet, when geometry is present) (default `output.parquet`)
 - `--count` (usize): number of random points (default `10000`)
 - `--bbox` (min_lon,min_lat,max_lon,max_lat): bounding box for random points (default `-180,-90,180,90`)

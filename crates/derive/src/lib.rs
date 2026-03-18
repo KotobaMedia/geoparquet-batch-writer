@@ -17,16 +17,16 @@ enum GeometryKind {
 
 /// Darling struct for parsing container-level attributes
 #[derive(FromDeriveInput, Debug)]
-#[darling(attributes(geo), forward_attrs(allow, doc, cfg))]
-struct GeoParquetOpts {
+#[darling(attributes(parquet), forward_attrs(allow, doc, cfg))]
+struct ParquetOpts {
     ident: Ident,
-    data: darling::ast::Data<(), GeoFieldOpts>,
+    data: darling::ast::Data<(), ParquetFieldOpts>,
 }
 
 /// Darling struct for parsing field-level attributes
 #[derive(FromField, Debug)]
-#[darling(attributes(geo), forward_attrs(allow, doc, cfg))]
-struct GeoFieldOpts {
+#[darling(attributes(parquet), forward_attrs(allow, doc, cfg))]
+struct ParquetFieldOpts {
     ident: Option<Ident>,
     ty: Type,
 
@@ -43,27 +43,27 @@ struct GeoFieldOpts {
     dim: Option<String>,
 }
 
-#[proc_macro_derive(GeoParquetRowData, attributes(geo))]
-pub fn derive_geo_parquet_row_data(input: TokenStream) -> TokenStream {
+#[proc_macro_derive(ParquetRowData, attributes(parquet))]
+pub fn derive_parquet_row_data(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    match impl_geoparquet_row_data(&input) {
+    match impl_parquet_row_data(&input) {
         Ok(ts) => ts,
         Err(e) => e.to_compile_error().into(),
     }
 }
 
-#[proc_macro_derive(GeoParquetRowStruct, attributes(geo))]
-pub fn derive_geo_parquet_row_struct(input: TokenStream) -> TokenStream {
+#[proc_macro_derive(ParquetRowStruct, attributes(parquet))]
+pub fn derive_parquet_row_struct(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    match impl_geoparquet_row_struct(&input) {
+    match impl_parquet_row_struct(&input) {
         Ok(ts) => ts,
         Err(e) => e.to_compile_error().into(),
     }
 }
 
-fn impl_geoparquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
+fn impl_parquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
     // Parse attributes using darling
-    let opts = GeoParquetOpts::from_derive_input(input).map_err(syn::Error::from)?;
+    let opts = ParquetOpts::from_derive_input(input).map_err(syn::Error::from)?;
 
     let struct_ident = &opts.ident;
 
@@ -72,7 +72,7 @@ fn impl_geoparquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
         _ => {
             return Err(syn::Error::new(
                 input.span(),
-                "GeoParquetRowData supports only structs",
+                "ParquetRowData supports only structs",
             ));
         }
     };
@@ -88,14 +88,9 @@ fn impl_geoparquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
     }
 
     let mut finfos: Vec<FieldInfo> = Vec::new();
-    let mut geom_count = 0usize;
-
     for field_opts in &fields.fields {
         let ident = field_opts.ident.clone().ok_or_else(|| {
-            syn::Error::new(
-                field_opts.ty.span(),
-                "GeoParquetRowData requires named fields",
-            )
+            syn::Error::new(field_opts.ty.span(), "ParquetRowData requires named fields")
         })?;
 
         // Use provided name or default to field identifier
@@ -115,10 +110,6 @@ fn impl_geoparquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
         let detected_kind = geometry_kind(inner_ty);
         let is_geometry = is_geometry || detected_kind.is_some();
 
-        if is_geometry {
-            geom_count += 1;
-        }
-
         finfos.push(FieldInfo {
             ident,
             col_name,
@@ -128,19 +119,6 @@ fn impl_geoparquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
             geom_kind: detected_kind,
             dim,
         });
-    }
-
-    if geom_count == 0 {
-        return Err(syn::Error::new(
-            input.span(),
-            "No geometry field found. Mark one with #[geo(geometry)] or use a type like geo_types::Point<f64>, LineString<f64>, Polygon<f64>, MultiPoint<f64>, MultiLineString<f64>, MultiPolygon<f64>, Geometry<f64>, or GeometryCollection<f64>.",
-        ));
-    }
-    if geom_count > 1 {
-        return Err(syn::Error::new(
-            input.span(),
-            "Multiple geometry fields found; currently only one geometry field is supported.",
-        ));
     }
 
     // Ensure geometry field type is recognized if explicitly marked
@@ -157,9 +135,8 @@ fn impl_geoparquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
     let mut schema_field_tokens = Vec::new();
     let mut array_expr_tokens = Vec::new();
 
-    // geometry shared setup (Type depends on geometry kind)
-    let geom_type_ident = format_ident!("__gp_geom_type");
-    let geom_setup_tokens = |kind: GeometryKind,
+    let geom_setup_tokens = |geom_type_ident: &Ident,
+                             kind: GeometryKind,
                              dim_string: Option<&str>|
      -> proc_macro2::TokenStream {
         let dim_expr = match dim_string.unwrap_or("XY") {
@@ -223,24 +200,26 @@ fn impl_geoparquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
         }
     };
 
-    // Flag whether we need geometry init
-    let mut geometry_init_tokens: Option<proc_macro2::TokenStream> = None;
-
     for (idx, fi) in finfos.iter().enumerate() {
         if fi.is_geometry {
             let col_name_lit = syn::LitStr::new(&fi.col_name, fi.ident.span());
             let is_option = fi.is_option;
             // Determine geometry kind (from detection or default to Geometry)
             let kind = fi.geom_kind.unwrap_or(GeometryKind::Geometry);
+            let geom_type_ident = format_ident!("__pq_geom_type_{}", idx);
+            let geom_init_tokens = geom_setup_tokens(&geom_type_ident, kind, fi.dim.as_deref());
+            let geom_init_tokens_for_schema = geom_init_tokens.clone();
+            let geom_init_tokens_for_array = geom_init_tokens.clone();
 
             // Schema field (nullable if Option). to_field may return Result in some versions.
-            schema_field_tokens.push(quote! {
+            schema_field_tokens.push(quote! {{
+                #geom_init_tokens_for_schema
                 #geom_type_ident.to_field(#col_name_lit, #is_option)
-            });
+            }});
 
             // Arrays: choose correct builder and push method
-            let b_ident = format_ident!("__gp_geom_builder");
-            let arr_ident = format_ident!("__gp_arr_{}", idx);
+            let b_ident = format_ident!("__pq_geom_builder_{}", idx);
+            let arr_ident = format_ident!("__pq_arr_{}", idx);
             let ident = &fi.ident;
 
             let (builder_path, push_method_ident) = match kind {
@@ -300,15 +279,13 @@ fn impl_geoparquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
             };
 
             array_expr_tokens.push(quote! {{
+                #geom_init_tokens_for_array
                 use ::geoparquet_batch_writer::__dep::geoarrow_array::GeoArrowArray as _;
                 let mut #b_ident = #builder_path::new(#geom_type_ident.clone());
                 #push_tokens
                 let #arr_ident = ::std::sync::Arc::new(#b_ident.finish().into_array_ref());
                 #arr_ident
             }});
-
-            // Initialize the appropriate GeoArrow schema type with requested dim
-            geometry_init_tokens = Some(geom_setup_tokens(kind, fi.dim.as_deref()));
         } else {
             // Scalar or String
             let dt = arrow_datatype(&fi.ty)?;
@@ -318,7 +295,7 @@ fn impl_geoparquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
             schema_field_tokens.push(quote! {
                 ::geoparquet_batch_writer::__dep::arrow_schema::Field::new(#col_name_lit, #dt, #is_option)
             });
-            let arr_ident = format_ident!("__gp_arr_{}", idx);
+            let arr_ident = format_ident!("__pq_arr_{}", idx);
 
             // rows.iter().map(|r| r.field) vs map(|r| r.field.as_ref()…) for Option & String
             let map_expr = value_mapper(&fi.ty, &fi.ident, fi.is_option);
@@ -349,16 +326,14 @@ fn impl_geoparquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
     };
 
     let expanded = quote! {
-        impl ::geoparquet_batch_writer::GeoParquetRowData for #struct_ident
+        impl ::geoparquet_batch_writer::ParquetRowData for #struct_ident
         where Self: Send + Sync
         {
             fn schema() -> ::std::sync::Arc<::geoparquet_batch_writer::__dep::arrow_schema::Schema> {
-                #geometry_init_tokens
                 #schema_vec_tokens
             }
 
             fn to_arrays(rows: &[Self]) -> ::geoparquet_batch_writer::__dep::Result<Vec<::std::sync::Arc<dyn ::geoparquet_batch_writer::__dep::arrow_array::Array>>> {
-                #geometry_init_tokens
                 #arrays_vec_tokens
             }
         }
@@ -367,9 +342,9 @@ fn impl_geoparquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
     Ok(expanded.into())
 }
 
-fn impl_geoparquet_row_struct(input: &DeriveInput) -> syn::Result<TokenStream> {
+fn impl_parquet_row_struct(input: &DeriveInput) -> syn::Result<TokenStream> {
     // Parse attributes using darling
-    let opts = GeoParquetOpts::from_derive_input(input).map_err(syn::Error::from)?;
+    let opts = ParquetOpts::from_derive_input(input).map_err(syn::Error::from)?;
 
     let struct_ident = &opts.ident;
 
@@ -378,7 +353,7 @@ fn impl_geoparquet_row_struct(input: &DeriveInput) -> syn::Result<TokenStream> {
         _ => {
             return Err(syn::Error::new(
                 input.span(),
-                "GeoParquetRowStruct supports only structs",
+                "ParquetRowStruct supports only structs",
             ));
         }
     };
@@ -396,7 +371,7 @@ fn impl_geoparquet_row_struct(input: &DeriveInput) -> syn::Result<TokenStream> {
         let ident = field_opts.ident.clone().ok_or_else(|| {
             syn::Error::new(
                 field_opts.ty.span(),
-                "GeoParquetRowStruct requires named fields",
+                "ParquetRowStruct requires named fields",
             )
         })?;
 
@@ -442,7 +417,7 @@ fn impl_geoparquet_row_struct(input: &DeriveInput) -> syn::Result<TokenStream> {
         let ident = &fi.ident;
         let ty = &fi.ty;
         let is_option = fi.is_option;
-        let arr_ident = format_ident!("__gp_arr_{}", idx);
+        let arr_ident = format_ident!("__pq_arr_{}", idx);
 
         if is_option {
             // Field is Option<T>, extract Option<T> and use T::from_iter
@@ -468,7 +443,7 @@ fn impl_geoparquet_row_struct(input: &DeriveInput) -> syn::Result<TokenStream> {
     }
 
     let field_array_refs: Vec<_> = (0..finfos.len())
-        .map(|idx| format_ident!("__gp_arr_{}", idx))
+        .map(|idx| format_ident!("__pq_arr_{}", idx))
         .collect();
 
     let expanded = quote! {
