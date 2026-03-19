@@ -8,7 +8,8 @@ Rust library (plus derive macro) for writing Parquet files efficiently in batche
 ## Features
 - Derive macro to turn your struct into Arrow arrays + schema
 - Automatic batching with a configurable `max_rows_per_batch`
-- Automatic GeoParquet output when the schema contains geometry fields
+- Plain parquet writing works without any geo dependencies
+- Automatic GeoParquet output when the schema contains geometry fields and the `geo` feature is enabled
 - Supports geo-types: Point, LineString, Polygon, MultiPoint, MultiLineString, MultiPolygon, Geometry, GeometryCollection (all `f64`)
 - Optional fields via `Option<T>` (including optional geometry)
 - Column rename and geometry dimension hints (XY/XYZ/XYM)
@@ -27,11 +28,23 @@ cargo build -q
 
 # run tests (core crate has unit tests)
 cargo test -q
+
+# verify the plain parquet-only library build
+cargo test -q -p geoparquet-batch-writer --no-default-features
 ```
 
 ## Library usage
 
 `cargo add geoparquet-batch-writer`
+
+Geo support is enabled by default. If you only need plain parquet output, disable default features:
+
+```toml
+[dependencies]
+geoparquet-batch-writer = { version = "0.1.4", default-features = false }
+```
+
+Use `features = ["geo"]` or default features when you want geometry columns and GeoParquet metadata.
 
 Add a row type and derive `ParquetRowData`. Geometry fields are detected automatically from supported `geo-types`, or can be marked explicitly with `#[parquet(geometry)]`. Optionally rename columns or set geometry dimension.
 
@@ -68,7 +81,7 @@ fn main() -> Result<()> {
 ```
 
 Notes
-- Geometry fields trigger GeoParquet automatically; rows without geometry write plain Parquet
+- Geometry fields trigger GeoParquet automatically when the `geo` feature is enabled; rows without geometry write plain Parquet
 - Multiple geometry fields are supported
 - Geometry can be optional (`Option<Point<f64>>`) and will produce nulls
 - Non-geometry columns support typical Arrow scalar types (e.g., integers, floats, strings)

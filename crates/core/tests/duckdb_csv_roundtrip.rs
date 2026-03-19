@@ -1,3 +1,5 @@
+#![cfg(feature = "geo")]
+
 use std::fs;
 use std::path::PathBuf;
 

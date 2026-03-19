@@ -1,3 +1,5 @@
+#![cfg(feature = "geo")]
+
 use geo_types::Point;
 use geoparquet_batch_writer::{ParquetBatchWriter, ParquetRowData};
 

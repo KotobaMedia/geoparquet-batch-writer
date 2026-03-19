@@ -1,6 +1,6 @@
 [package]
 name = "geoparquet-batch-writer-derive"
-description = "Derive macros for convenient batch writing of Parquet and GeoParquet files"
+description = "Derive macros for convenient batch writing of Parquet files with optional GeoParquet support"
 homepage = "https://github.com/KotobaMedia/geoparquet-batch-writer/"
 repository = "https://github.com/KotobaMedia/geoparquet-batch-writer/"
 version = "0.1.4"

@@ -1,7 +1,22 @@
+//! Batch writer for Parquet files with optional GeoParquet support.
+//!
+//! The `geo` feature is enabled by default. Disable default features to build a
+//! plain parquet-only configuration:
+//!
+//! ```toml
+//! [dependencies]
+//! geoparquet-batch-writer = { version = "0.1.4", default-features = false }
+//! ```
+//!
+//! Re-enable geometry support explicitly with `features = ["geo"]`.
+
 use std::{fs::File, io::BufWriter, path::Path, sync::Arc};
 
 use arrow_array::{Array, RecordBatch};
-use arrow_schema::{DataType, Field, Schema, extension::EXTENSION_TYPE_NAME_KEY};
+use arrow_schema::{DataType, Schema};
+#[cfg(feature = "geo")]
+use arrow_schema::{Field, extension::EXTENSION_TYPE_NAME_KEY};
+#[cfg(feature = "geo")]
 use geoparquet::writer::{GeoParquetRecordBatchEncoder, GeoParquetWriterOptionsBuilder};
 use parquet::arrow::ArrowWriter;
 
@@ -313,8 +328,28 @@ pub mod __dep {
     pub use arrow_array;
     pub use arrow_buffer;
     pub use arrow_schema;
+    #[cfg(feature = "geo")]
     pub use geoarrow_array;
+    #[cfg(feature = "geo")]
     pub use geoarrow_schema;
+}
+
+#[doc(hidden)]
+#[cfg(feature = "geo")]
+#[macro_export]
+macro_rules! __geoparquet_batch_writer_require_geo {
+    () => {};
+}
+
+#[doc(hidden)]
+#[cfg(not(feature = "geo"))]
+#[macro_export]
+macro_rules! __geoparquet_batch_writer_require_geo {
+    () => {
+        compile_error!(
+            "geometry support requires the `geo` feature on `geoparquet-batch-writer`; enable default features or set features = [\"geo\"]"
+        );
+    };
 }
 
 /// Configuration for batch processing
@@ -346,10 +381,12 @@ pub trait ParquetRowData: Send + Sync + Sized {
 
 enum OutputEncoding {
     Plain,
+    #[cfg(feature = "geo")]
     Geo(GeoParquetRecordBatchEncoder),
 }
 
 impl OutputEncoding {
+    #[cfg(feature = "geo")]
     fn try_new(schema: &Schema) -> Result<Self> {
         if !schema_has_geometry(schema) {
             return Ok(Self::Plain);
@@ -362,9 +399,15 @@ impl OutputEncoding {
         Ok(Self::Geo(encoder))
     }
 
+    #[cfg(not(feature = "geo"))]
+    fn try_new(_schema: &Schema) -> Result<Self> {
+        Ok(Self::Plain)
+    }
+
     fn target_schema(&self, input_schema: &Arc<Schema>) -> Arc<Schema> {
         match self {
             Self::Plain => input_schema.clone(),
+            #[cfg(feature = "geo")]
             Self::Geo(encoder) => encoder.target_schema(),
         }
     }
@@ -372,11 +415,16 @@ impl OutputEncoding {
     fn encode_record_batch(&mut self, batch: RecordBatch) -> Result<RecordBatch> {
         match self {
             Self::Plain => Ok(batch),
+            #[cfg(feature = "geo")]
             Self::Geo(encoder) => Ok(encoder.encode_record_batch(&batch)?),
         }
     }
 
     fn append_metadata(self, writer: &mut ArrowWriter<BufWriter<File>>) -> Result<()> {
+        #[cfg(not(feature = "geo"))]
+        let _ = writer;
+
+        #[cfg(feature = "geo")]
         if let Self::Geo(encoder) = self {
             writer.append_key_value_metadata(encoder.into_keyvalue()?);
         }
@@ -384,6 +432,7 @@ impl OutputEncoding {
     }
 }
 
+#[cfg(feature = "geo")]
 fn schema_has_geometry(schema: &Schema) -> bool {
     schema
         .fields()
@@ -391,6 +440,7 @@ fn schema_has_geometry(schema: &Schema) -> bool {
         .any(|field| field_has_geometry(field))
 }
 
+#[cfg(feature = "geo")]
 fn field_has_geometry(field: &Field) -> bool {
     if field
         .metadata()

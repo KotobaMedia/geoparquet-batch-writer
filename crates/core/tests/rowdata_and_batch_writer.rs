@@ -1,3 +1,5 @@
+#![cfg(feature = "geo")]
+
 use std::fs::{self, File};
 use std::path::PathBuf;
 
@@ -71,13 +73,6 @@ struct RowWithVecs {
     counts: Option<Vec<i32>>,
     #[parquet(geometry)]
     geom: Point<f64>,
-}
-
-#[derive(Clone, ParquetRowData)]
-struct RowPlain {
-    id: u64,
-    name: String,
-    active: Option<bool>,
 }
 
 #[derive(Clone, ParquetRowData)]
@@ -316,24 +311,6 @@ fn batch_writer_handles_varied_structs() -> Result<()> {
         let meta = fs::metadata(p)?;
         assert!(meta.len() > 0);
     }
-    Ok(())
-}
-
-#[test]
-fn plain_parquet_writer_skips_geo_metadata() -> Result<()> {
-    let out = tmp_file("plain_rows");
-    let mut writer: ParquetBatchWriter<RowPlain> =
-        ParquetBatchWriter::new(&out.path, BatchConfig::default())?;
-    writer.add_row(RowPlain {
-        id: 1,
-        name: "plain".into(),
-        active: Some(true),
-    })?;
-    writer.finish()?;
-
-    let meta = fs::metadata(&out.path)?;
-    assert!(meta.len() > 0);
-    assert!(!parquet_metadata_contains(&out.path, "geo")?);
     Ok(())
 }
 

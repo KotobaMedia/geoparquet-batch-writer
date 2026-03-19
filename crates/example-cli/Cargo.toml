@@ -8,9 +8,18 @@ publish = false
 [package.metadata.release]
 release = false
 
+[features]
+default = ["geo"]
+geo = ["dep:geo-types", "geoparquet-batch-writer/geo"]
+
+[[bin]]
+name = "geoparquet-batch-writer-example-cli"
+path = "src/main.rs"
+required-features = ["geo"]
+
 [dependencies]
 anyhow = "1"
-geoparquet-batch-writer = { version = "0.1.4", path = "../core" }
+geoparquet-batch-writer = { version = "0.1.4", path = "../core", default-features = false }
 clap = { version = "4", features = ["derive"] }
-geo-types = "0.7"
+geo-types = { version = "0.7", optional = true }
 rand = "0.8"

@@ -131,6 +131,13 @@ fn impl_parquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
         }
     }
 
+    let has_geometry_fields = finfos.iter().any(|fi| fi.is_geometry);
+    let geo_feature_guard = if has_geometry_fields {
+        quote!(::geoparquet_batch_writer::__geoparquet_batch_writer_require_geo!();)
+    } else {
+        quote!()
+    };
+
     // Generate schema fields & array builders
     let mut schema_field_tokens = Vec::new();
     let mut array_expr_tokens = Vec::new();
@@ -330,10 +337,12 @@ fn impl_parquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
         where Self: Send + Sync
         {
             fn schema() -> ::std::sync::Arc<::geoparquet_batch_writer::__dep::arrow_schema::Schema> {
+                #geo_feature_guard
                 #schema_vec_tokens
             }
 
             fn to_arrays(rows: &[Self]) -> ::geoparquet_batch_writer::__dep::Result<Vec<::std::sync::Arc<dyn ::geoparquet_batch_writer::__dep::arrow_array::Array>>> {
+                #geo_feature_guard
                 #arrays_vec_tokens
             }
         }

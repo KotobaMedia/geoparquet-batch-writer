@@ -8,6 +8,7 @@ pub enum ParquetBatchWriterError {
     Arrow(#[from] arrow_schema::ArrowError),
 
     /// Error from the GeoArrow library
+    #[cfg(feature = "geo")]
     #[error("GeoArrow error: {0}")]
     GeoArrow(#[from] geoarrow_schema::error::GeoArrowError),
 
