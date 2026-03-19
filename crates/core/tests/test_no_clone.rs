@@ -1,7 +1,7 @@
 #![cfg(feature = "geo")]
 
 use geo_types::Point;
-use geoparquet_batch_writer::{ParquetBatchWriter, ParquetRowData};
+use parquet_batch_writer::{ParquetBatchWriter, ParquetRowData};
 
 // This struct intentionally does NOT derive Clone
 // to demonstrate that Clone is no longer required

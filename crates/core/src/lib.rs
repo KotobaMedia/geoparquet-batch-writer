@@ -5,7 +5,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! geoparquet-batch-writer = { version = "0.1.4", default-features = false }
+//! parquet-batch-writer = { version = "0.1.4", default-features = false }
 //! ```
 //!
 //! Re-enable geometry support explicitly with `features = ["geo"]`.
@@ -21,7 +21,7 @@ use geoparquet::writer::{GeoParquetRecordBatchEncoder, GeoParquetWriterOptionsBu
 use parquet::arrow::ArrowWriter;
 
 pub use error::{ParquetBatchWriterError, Result};
-pub use geoparquet_batch_writer_derive::{ParquetRowData, ParquetRowStruct};
+pub use parquet_batch_writer_derive::{ParquetRowData, ParquetRowStruct};
 
 mod error;
 
@@ -320,7 +320,7 @@ impl ArrowDataType for String {
 }
 
 /// Internal re-exports used by the proc-macro expansion.
-/// This lets downstream users only depend on `geoparquet-batch-writer`.
+/// This lets downstream users only depend on `parquet-batch-writer`.
 #[doc(hidden)]
 pub mod __dep {
     pub use crate::ArrowDataType;
@@ -337,17 +337,17 @@ pub mod __dep {
 #[doc(hidden)]
 #[cfg(feature = "geo")]
 #[macro_export]
-macro_rules! __geoparquet_batch_writer_require_geo {
+macro_rules! __parquet_batch_writer_require_geo {
     () => {};
 }
 
 #[doc(hidden)]
 #[cfg(not(feature = "geo"))]
 #[macro_export]
-macro_rules! __geoparquet_batch_writer_require_geo {
+macro_rules! __parquet_batch_writer_require_geo {
     () => {
         compile_error!(
-            "geometry support requires the `geo` feature on `geoparquet-batch-writer`; enable default features or set features = [\"geo\"]"
+            "geometry support requires the `geo` feature on `parquet-batch-writer`; enable default features or set features = [\"geo\"]"
         );
     };
 }

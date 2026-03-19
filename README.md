@@ -1,7 +1,7 @@
 # Parquet Batch Writer
 
-[![Crates.io Version](https://img.shields.io/crates/v/geoparquet-batch-writer)](https://crates.io/crates/geoparquet-batch-writer)
-[![docs.rs](https://img.shields.io/docsrs/geoparquet-batch-writer)](https://docs.rs/geoparquet-batch-writer/latest/geoparquet-batch-writer/)
+[![Crates.io Version](https://img.shields.io/crates/v/parquet-batch-writer)](https://crates.io/crates/parquet-batch-writer)
+[![docs.rs](https://img.shields.io/docsrs/parquet-batch-writer)](https://docs.rs/parquet-batch-writer/latest/parquet-batch-writer/)
 
 Rust library (plus derive macro) for writing Parquet files efficiently in batches using Arrow. Define a row struct, derive `ParquetRowData`, and stream rows to an on-disk Parquet file. If the generated schema contains GeoArrow geometry fields, the writer automatically switches to GeoParquet encoding and metadata.
 
@@ -15,7 +15,7 @@ Rust library (plus derive macro) for writing Parquet files efficiently in batche
 - Column rename and geometry dimension hints (XY/XYZ/XYM)
 
 ## Workspace layout
-- `crates/core`: library crate `geoparquet-batch-writer`
+- `crates/core`: library crate `parquet-batch-writer`
 - `crates/derive`: proc-macro crate exporting `#[derive(ParquetRowData)]`
 - `crates/example-cli`: example CLI demonstrating how geometry rows automatically produce GeoParquet output (not published)
 
@@ -30,18 +30,18 @@ cargo build -q
 cargo test -q
 
 # verify the plain parquet-only library build
-cargo test -q -p geoparquet-batch-writer --no-default-features
+cargo test -q -p parquet-batch-writer --no-default-features
 ```
 
 ## Library usage
 
-`cargo add geoparquet-batch-writer`
+`cargo add parquet-batch-writer`
 
 Geo support is enabled by default. If you only need plain parquet output, disable default features:
 
 ```toml
 [dependencies]
-geoparquet-batch-writer = { version = "0.1.4", default-features = false }
+parquet-batch-writer = { version = "0.1.4", default-features = false }
 ```
 
 Use `features = ["geo"]` or default features when you want geometry columns and GeoParquet metadata.
@@ -51,7 +51,7 @@ Add a row type and derive `ParquetRowData`. Geometry fields are detected automat
 ```rust
 use anyhow::Result;
 use geo_types::Point;
-use geoparquet_batch_writer::{BatchConfig, ParquetBatchWriter, ParquetRowData};
+use parquet_batch_writer::{BatchConfig, ParquetBatchWriter, ParquetRowData};
 
 #[derive(ParquetRowData)]
 struct Row {
@@ -93,7 +93,7 @@ Run it like this:
 
 ```sh
 # from repo root
-cargo run -q -p geoparquet-batch-writer-example-cli -- \
+cargo run -q -p parquet-batch-writer-example-cli -- \
     --output output.parquet \
     --count 10000 \
     --bbox "-180,-90,180,90"

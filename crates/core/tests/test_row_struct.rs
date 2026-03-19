@@ -1,6 +1,6 @@
 use arrow_array::Array;
 use arrow_schema::DataType;
-use geoparquet_batch_writer::{ArrowDataType, ParquetRowStruct};
+use parquet_batch_writer::{ArrowDataType, ParquetRowStruct};
 
 #[derive(ParquetRowStruct, Clone, Default)]
 struct SimpleStruct {

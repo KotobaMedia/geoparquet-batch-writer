@@ -2,8 +2,8 @@ use std::fs::{self, File};
 use std::path::PathBuf;
 
 use anyhow::Result;
-use geoparquet_batch_writer::{BatchConfig, ParquetBatchWriter, ParquetRowData};
 use parquet::file::reader::{FileReader, SerializedFileReader};
+use parquet_batch_writer::{BatchConfig, ParquetBatchWriter, ParquetRowData};
 
 #[derive(Clone, ParquetRowData)]
 struct RowPlain {

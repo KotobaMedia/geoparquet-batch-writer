@@ -133,7 +133,7 @@ fn impl_parquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
 
     let has_geometry_fields = finfos.iter().any(|fi| fi.is_geometry);
     let geo_feature_guard = if has_geometry_fields {
-        quote!(::geoparquet_batch_writer::__geoparquet_batch_writer_require_geo!();)
+        quote!(::parquet_batch_writer::__parquet_batch_writer_require_geo!();)
     } else {
         quote!()
     };
@@ -147,38 +147,38 @@ fn impl_parquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
                              dim_string: Option<&str>|
      -> proc_macro2::TokenStream {
         let dim_expr = match dim_string.unwrap_or("XY") {
-            "XYZ" => quote!(::geoparquet_batch_writer::__dep::geoarrow_schema::Dimension::XYZ),
-            "XYM" => quote!(::geoparquet_batch_writer::__dep::geoarrow_schema::Dimension::XYM),
-            _ => quote!(::geoparquet_batch_writer::__dep::geoarrow_schema::Dimension::XY),
+            "XYZ" => quote!(::parquet_batch_writer::__dep::geoarrow_schema::Dimension::XYZ),
+            "XYM" => quote!(::parquet_batch_writer::__dep::geoarrow_schema::Dimension::XYM),
+            _ => quote!(::parquet_batch_writer::__dep::geoarrow_schema::Dimension::XY),
         };
         let ty_ctor_two = match kind {
             GeometryKind::Point => Some(quote!(
-                ::geoparquet_batch_writer::__dep::geoarrow_schema::PointType::new
+                ::parquet_batch_writer::__dep::geoarrow_schema::PointType::new
             )),
             GeometryKind::LineString => Some(quote!(
-                ::geoparquet_batch_writer::__dep::geoarrow_schema::LineStringType::new
+                ::parquet_batch_writer::__dep::geoarrow_schema::LineStringType::new
             )),
             GeometryKind::Polygon => Some(quote!(
-                ::geoparquet_batch_writer::__dep::geoarrow_schema::PolygonType::new
+                ::parquet_batch_writer::__dep::geoarrow_schema::PolygonType::new
             )),
             GeometryKind::MultiPoint => Some(quote!(
-                ::geoparquet_batch_writer::__dep::geoarrow_schema::MultiPointType::new
+                ::parquet_batch_writer::__dep::geoarrow_schema::MultiPointType::new
             )),
             GeometryKind::MultiLineString => Some(quote!(
-                ::geoparquet_batch_writer::__dep::geoarrow_schema::MultiLineStringType::new
+                ::parquet_batch_writer::__dep::geoarrow_schema::MultiLineStringType::new
             )),
             GeometryKind::MultiPolygon => Some(quote!(
-                ::geoparquet_batch_writer::__dep::geoarrow_schema::MultiPolygonType::new
+                ::parquet_batch_writer::__dep::geoarrow_schema::MultiPolygonType::new
             )),
             GeometryKind::Geometry => None,
             GeometryKind::GeometryCollection => None,
         };
         let one_arg_ctor = match kind {
             GeometryKind::Geometry => Some(quote!(
-                ::geoparquet_batch_writer::__dep::geoarrow_schema::GeometryType::new
+                ::parquet_batch_writer::__dep::geoarrow_schema::GeometryType::new
             )),
             GeometryKind::GeometryCollection => Some(quote!(
-                ::geoparquet_batch_writer::__dep::geoarrow_schema::GeometryCollectionType::new
+                ::parquet_batch_writer::__dep::geoarrow_schema::GeometryCollectionType::new
             )),
             _ => None,
         };
@@ -201,7 +201,7 @@ fn impl_parquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
             quote! {
                 let #geom_type_ident = {
                     let dim = #dim_expr;
-                    ::geoparquet_batch_writer::__dep::geoarrow_schema::GeometryType::new(::std::sync::Arc::new(::std::default::Default::default()))
+                    ::parquet_batch_writer::__dep::geoarrow_schema::GeometryType::new(::std::sync::Arc::new(::std::default::Default::default()))
                 };
             }
         }
@@ -231,35 +231,35 @@ fn impl_parquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
 
             let (builder_path, push_method_ident) = match kind {
                 GeometryKind::Point => (
-                    quote!(::geoparquet_batch_writer::__dep::geoarrow_array::builder::PointBuilder),
+                    quote!(::parquet_batch_writer::__dep::geoarrow_array::builder::PointBuilder),
                     format_ident!("push_point"),
                 ),
                 GeometryKind::LineString => (
-                    quote!(::geoparquet_batch_writer::__dep::geoarrow_array::builder::LineStringBuilder),
+                    quote!(::parquet_batch_writer::__dep::geoarrow_array::builder::LineStringBuilder),
                     format_ident!("push_line_string"),
                 ),
                 GeometryKind::Polygon => (
-                    quote!(::geoparquet_batch_writer::__dep::geoarrow_array::builder::PolygonBuilder),
+                    quote!(::parquet_batch_writer::__dep::geoarrow_array::builder::PolygonBuilder),
                     format_ident!("push_polygon"),
                 ),
                 GeometryKind::MultiPoint => (
-                    quote!(::geoparquet_batch_writer::__dep::geoarrow_array::builder::MultiPointBuilder),
+                    quote!(::parquet_batch_writer::__dep::geoarrow_array::builder::MultiPointBuilder),
                     format_ident!("push_multi_point"),
                 ),
                 GeometryKind::MultiLineString => (
-                    quote!(::geoparquet_batch_writer::__dep::geoarrow_array::builder::MultiLineStringBuilder),
+                    quote!(::parquet_batch_writer::__dep::geoarrow_array::builder::MultiLineStringBuilder),
                     format_ident!("push_multi_line_string"),
                 ),
                 GeometryKind::MultiPolygon => (
-                    quote!(::geoparquet_batch_writer::__dep::geoarrow_array::builder::MultiPolygonBuilder),
+                    quote!(::parquet_batch_writer::__dep::geoarrow_array::builder::MultiPolygonBuilder),
                     format_ident!("push_multi_polygon"),
                 ),
                 GeometryKind::Geometry => (
-                    quote!(::geoparquet_batch_writer::__dep::geoarrow_array::builder::GeometryBuilder),
+                    quote!(::parquet_batch_writer::__dep::geoarrow_array::builder::GeometryBuilder),
                     format_ident!("push_geometry"),
                 ),
                 GeometryKind::GeometryCollection => (
-                    quote!(::geoparquet_batch_writer::__dep::geoarrow_array::builder::GeometryCollectionBuilder),
+                    quote!(::parquet_batch_writer::__dep::geoarrow_array::builder::GeometryCollectionBuilder),
                     format_ident!("push_geometry_collection"),
                 ),
             };
@@ -287,7 +287,7 @@ fn impl_parquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
 
             array_expr_tokens.push(quote! {{
                 #geom_init_tokens_for_array
-                use ::geoparquet_batch_writer::__dep::geoarrow_array::GeoArrowArray as _;
+                use ::parquet_batch_writer::__dep::geoarrow_array::GeoArrowArray as _;
                 let mut #b_ident = #builder_path::new(#geom_type_ident.clone());
                 #push_tokens
                 let #arr_ident = ::std::sync::Arc::new(#b_ident.finish().into_array_ref());
@@ -300,7 +300,7 @@ fn impl_parquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
             let col_name_lit = syn::LitStr::new(&fi.col_name, fi.ident.span());
             let is_option = fi.is_option;
             schema_field_tokens.push(quote! {
-                ::geoparquet_batch_writer::__dep::arrow_schema::Field::new(#col_name_lit, #dt, #is_option)
+                ::parquet_batch_writer::__dep::arrow_schema::Field::new(#col_name_lit, #dt, #is_option)
             });
             let arr_ident = format_ident!("__pq_arr_{}", idx);
 
@@ -310,7 +310,7 @@ fn impl_parquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
             array_expr_tokens.push(quote! {{
                 let it = rows.iter().map(#map_expr);
                 let arr: ::std::sync::Arc<#array_ty> = #from_tokens;
-                let #arr_ident: ::std::sync::Arc<dyn ::geoparquet_batch_writer::__dep::arrow_array::Array> = arr;
+                let #arr_ident: ::std::sync::Arc<dyn ::parquet_batch_writer::__dep::arrow_array::Array> = arr;
                 #arr_ident
             }});
         }
@@ -318,7 +318,7 @@ fn impl_parquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
 
     let schema_vec_tokens = quote! {
         {
-            ::std::sync::Arc::new(::geoparquet_batch_writer::__dep::arrow_schema::Schema::new(vec![
+            ::std::sync::Arc::new(::parquet_batch_writer::__dep::arrow_schema::Schema::new(vec![
                 #(#schema_field_tokens),*
             ]))
         }
@@ -333,15 +333,15 @@ fn impl_parquet_row_data(input: &DeriveInput) -> syn::Result<TokenStream> {
     };
 
     let expanded = quote! {
-        impl ::geoparquet_batch_writer::ParquetRowData for #struct_ident
+        impl ::parquet_batch_writer::ParquetRowData for #struct_ident
         where Self: Send + Sync
         {
-            fn schema() -> ::std::sync::Arc<::geoparquet_batch_writer::__dep::arrow_schema::Schema> {
+            fn schema() -> ::std::sync::Arc<::parquet_batch_writer::__dep::arrow_schema::Schema> {
                 #geo_feature_guard
                 #schema_vec_tokens
             }
 
-            fn to_arrays(rows: &[Self]) -> ::geoparquet_batch_writer::__dep::Result<Vec<::std::sync::Arc<dyn ::geoparquet_batch_writer::__dep::arrow_array::Array>>> {
+            fn to_arrays(rows: &[Self]) -> ::parquet_batch_writer::__dep::Result<Vec<::std::sync::Arc<dyn ::parquet_batch_writer::__dep::arrow_array::Array>>> {
                 #geo_feature_guard
                 #arrays_vec_tokens
             }
@@ -410,9 +410,9 @@ fn impl_parquet_row_struct(input: &DeriveInput) -> syn::Result<TokenStream> {
         let is_option = fi.is_option;
 
         struct_field_tokens.push(quote! {
-            ::geoparquet_batch_writer::__dep::arrow_schema::Field::new(
+            ::parquet_batch_writer::__dep::arrow_schema::Field::new(
                 #col_name_lit,
-                <#ty as ::geoparquet_batch_writer::__dep::ArrowDataType>::data_type(),
+                <#ty as ::parquet_batch_writer::__dep::ArrowDataType>::data_type(),
                 #is_option
             )
         });
@@ -432,21 +432,21 @@ fn impl_parquet_row_struct(input: &DeriveInput) -> syn::Result<TokenStream> {
             // Field is Option<T>, extract Option<T> and use T::from_iter
             field_array_tokens_iter_values.push(quote! {
                 let field_iter = values.iter().map(|r: &Self| r.#ident.clone());
-                let #arr_ident = <#ty as ::geoparquet_batch_writer::__dep::ArrowDataType>::from_iter(field_iter);
+                let #arr_ident = <#ty as ::parquet_batch_writer::__dep::ArrowDataType>::from_iter(field_iter);
             });
             field_array_tokens_iter.push(quote! {
                 let field_iter = values.iter().map(|r: &Self| r.#ident.clone());
-                let #arr_ident = <#ty as ::geoparquet_batch_writer::__dep::ArrowDataType>::from_iter(field_iter);
+                let #arr_ident = <#ty as ::parquet_batch_writer::__dep::ArrowDataType>::from_iter(field_iter);
             });
         } else {
             // Field is T, extract T and use T::from_iter_values
             field_array_tokens_iter_values.push(quote! {
                 let field_iter = values.iter().map(|r: &Self| r.#ident.clone());
-                let #arr_ident = <#ty as ::geoparquet_batch_writer::__dep::ArrowDataType>::from_iter_values(field_iter);
+                let #arr_ident = <#ty as ::parquet_batch_writer::__dep::ArrowDataType>::from_iter_values(field_iter);
             });
             field_array_tokens_iter.push(quote! {
                 let field_iter = values.iter().map(|r: &Self| r.#ident.clone());
-                let #arr_ident = <#ty as ::geoparquet_batch_writer::__dep::ArrowDataType>::from_iter_values(field_iter);
+                let #arr_ident = <#ty as ::parquet_batch_writer::__dep::ArrowDataType>::from_iter_values(field_iter);
             });
         }
     }
@@ -456,14 +456,14 @@ fn impl_parquet_row_struct(input: &DeriveInput) -> syn::Result<TokenStream> {
         .collect();
 
     let expanded = quote! {
-        impl ::geoparquet_batch_writer::__dep::ArrowDataType for #struct_ident
+        impl ::parquet_batch_writer::__dep::ArrowDataType for #struct_ident
         where Self: Send + Sync + Clone + 'static
         {
-            type Array = ::geoparquet_batch_writer::__dep::arrow_array::StructArray;
+            type Array = ::parquet_batch_writer::__dep::arrow_array::StructArray;
 
-            fn data_type() -> ::geoparquet_batch_writer::__dep::arrow_schema::DataType {
-                ::geoparquet_batch_writer::__dep::arrow_schema::DataType::Struct(
-                    ::geoparquet_batch_writer::__dep::arrow_schema::Fields::from(vec![
+            fn data_type() -> ::parquet_batch_writer::__dep::arrow_schema::DataType {
+                ::parquet_batch_writer::__dep::arrow_schema::DataType::Struct(
+                    ::parquet_batch_writer::__dep::arrow_schema::Fields::from(vec![
                         #(#struct_field_tokens),*
                     ])
                 )
@@ -476,17 +476,17 @@ fn impl_parquet_row_struct(input: &DeriveInput) -> syn::Result<TokenStream> {
                 let values: Vec<Self> = iter.into_iter().collect();
                 #(#field_array_tokens_iter_values)*
 
-                let field_arrays: Vec<::std::sync::Arc<dyn ::geoparquet_batch_writer::__dep::arrow_array::Array>> = vec![
-                    #(#field_array_refs as ::std::sync::Arc<dyn ::geoparquet_batch_writer::__dep::arrow_array::Array>),*
+                let field_arrays: Vec<::std::sync::Arc<dyn ::parquet_batch_writer::__dep::arrow_array::Array>> = vec![
+                    #(#field_array_refs as ::std::sync::Arc<dyn ::parquet_batch_writer::__dep::arrow_array::Array>),*
                 ];
 
                 let fields = match Self::data_type() {
-                    ::geoparquet_batch_writer::__dep::arrow_schema::DataType::Struct(fields) => fields,
+                    ::parquet_batch_writer::__dep::arrow_schema::DataType::Struct(fields) => fields,
                     _ => unreachable!(),
                 };
 
                 ::std::sync::Arc::new(
-                    ::geoparquet_batch_writer::__dep::arrow_array::StructArray::new(
+                    ::parquet_batch_writer::__dep::arrow_array::StructArray::new(
                         fields,
                         field_arrays,
                         None
@@ -502,7 +502,7 @@ fn impl_parquet_row_struct(input: &DeriveInput) -> syn::Result<TokenStream> {
                 let len = collected.len();
 
                 // Create validity bitmap for the struct array
-                let mut validity = ::geoparquet_batch_writer::__dep::arrow_array::builder::BooleanBufferBuilder::new(len);
+                let mut validity = ::parquet_batch_writer::__dep::arrow_array::builder::BooleanBufferBuilder::new(len);
                 let values: Vec<Self> = collected.into_iter().map(|opt| {
                     match opt {
                         Some(val) => {
@@ -521,17 +521,17 @@ fn impl_parquet_row_struct(input: &DeriveInput) -> syn::Result<TokenStream> {
                 let validity_buffer = validity.finish();
                 #(#field_array_tokens_iter)*
 
-                let field_arrays: Vec<::std::sync::Arc<dyn ::geoparquet_batch_writer::__dep::arrow_array::Array>> = vec![
-                    #(#field_array_refs as ::std::sync::Arc<dyn ::geoparquet_batch_writer::__dep::arrow_array::Array>),*
+                let field_arrays: Vec<::std::sync::Arc<dyn ::parquet_batch_writer::__dep::arrow_array::Array>> = vec![
+                    #(#field_array_refs as ::std::sync::Arc<dyn ::parquet_batch_writer::__dep::arrow_array::Array>),*
                 ];
 
                 let fields = match Self::data_type() {
-                    ::geoparquet_batch_writer::__dep::arrow_schema::DataType::Struct(fields) => fields,
+                    ::parquet_batch_writer::__dep::arrow_schema::DataType::Struct(fields) => fields,
                     _ => unreachable!(),
                 };
 
                 ::std::sync::Arc::new(
-                    ::geoparquet_batch_writer::__dep::arrow_array::StructArray::new(
+                    ::parquet_batch_writer::__dep::arrow_array::StructArray::new(
                         fields,
                         field_arrays,
                         Some(validity_buffer.into())
@@ -600,9 +600,9 @@ fn arrow_datatype(ty: &Type) -> syn::Result<proc_macro2::TokenStream> {
     if let Some(inner_ty) = vec_inner(ty) {
         let inner_dt = arrow_datatype(inner_ty)?;
         return Ok(quote!(
-            ::geoparquet_batch_writer::__dep::arrow_schema::DataType::List(
+            ::parquet_batch_writer::__dep::arrow_schema::DataType::List(
                 ::std::sync::Arc::new(
-                    ::geoparquet_batch_writer::__dep::arrow_schema::Field::new(
+                    ::parquet_batch_writer::__dep::arrow_schema::Field::new(
                         "item",
                         #inner_dt,
                         true
@@ -613,7 +613,7 @@ fn arrow_datatype(ty: &Type) -> syn::Result<proc_macro2::TokenStream> {
     }
 
     // Use the ArrowDataType trait to get the data type
-    Ok(quote!(<#ty as ::geoparquet_batch_writer::__dep::ArrowDataType>::data_type()))
+    Ok(quote!(<#ty as ::parquet_batch_writer::__dep::ArrowDataType>::data_type()))
 }
 
 fn array_ctor(
@@ -627,35 +627,35 @@ fn array_ctor(
         // First try primitive types with specific builders for better performance
         let primitive_builder = match inner_type_name.as_str() {
             "u64" => Some((
-                quote!(::geoparquet_batch_writer::__dep::arrow_array::builder::UInt64Builder),
+                quote!(::parquet_batch_writer::__dep::arrow_array::builder::UInt64Builder),
                 quote!(values.append_value(*val)),
             )),
             "i64" => Some((
-                quote!(::geoparquet_batch_writer::__dep::arrow_array::builder::Int64Builder),
+                quote!(::parquet_batch_writer::__dep::arrow_array::builder::Int64Builder),
                 quote!(values.append_value(*val)),
             )),
             "u32" => Some((
-                quote!(::geoparquet_batch_writer::__dep::arrow_array::builder::UInt32Builder),
+                quote!(::parquet_batch_writer::__dep::arrow_array::builder::UInt32Builder),
                 quote!(values.append_value(*val)),
             )),
             "i32" => Some((
-                quote!(::geoparquet_batch_writer::__dep::arrow_array::builder::Int32Builder),
+                quote!(::parquet_batch_writer::__dep::arrow_array::builder::Int32Builder),
                 quote!(values.append_value(*val)),
             )),
             "f64" => Some((
-                quote!(::geoparquet_batch_writer::__dep::arrow_array::builder::Float64Builder),
+                quote!(::parquet_batch_writer::__dep::arrow_array::builder::Float64Builder),
                 quote!(values.append_value(*val)),
             )),
             "f32" => Some((
-                quote!(::geoparquet_batch_writer::__dep::arrow_array::builder::Float32Builder),
+                quote!(::parquet_batch_writer::__dep::arrow_array::builder::Float32Builder),
                 quote!(values.append_value(*val)),
             )),
             "bool" => Some((
-                quote!(::geoparquet_batch_writer::__dep::arrow_array::builder::BooleanBuilder),
+                quote!(::parquet_batch_writer::__dep::arrow_array::builder::BooleanBuilder),
                 quote!(values.append_value(*val)),
             )),
             "String" => Some((
-                quote!(::geoparquet_batch_writer::__dep::arrow_array::builder::StringBuilder),
+                quote!(::parquet_batch_writer::__dep::arrow_array::builder::StringBuilder),
                 quote!(values.append_value(val)),
             )),
             _ => None,
@@ -665,7 +665,7 @@ fn array_ctor(
             let list_construction = if is_option {
                 quote! {
                     {
-                        let mut builder = ::geoparquet_batch_writer::__dep::arrow_array::builder::ListBuilder::new(#values_builder_type::new());
+                        let mut builder = ::parquet_batch_writer::__dep::arrow_array::builder::ListBuilder::new(#values_builder_type::new());
                         for opt_vec in it {
                             if let Some(vec_val) = opt_vec {
                                 let values = builder.values();
@@ -683,7 +683,7 @@ fn array_ctor(
             } else {
                 quote! {
                     {
-                        let mut builder = ::geoparquet_batch_writer::__dep::arrow_array::builder::ListBuilder::new(#values_builder_type::new());
+                        let mut builder = ::parquet_batch_writer::__dep::arrow_array::builder::ListBuilder::new(#values_builder_type::new());
                         for vec_val in it {
                             let values = builder.values();
                             for val in vec_val {
@@ -697,7 +697,7 @@ fn array_ctor(
             };
 
             return Ok((
-                quote!(::geoparquet_batch_writer::__dep::arrow_array::ListArray),
+                quote!(::parquet_batch_writer::__dep::arrow_array::ListArray),
                 quote! { ::std::sync::Arc::new(#list_construction) },
             ));
         }
@@ -711,7 +711,7 @@ fn array_ctor(
 
                     // Now create a simple list array by concatenating all values and tracking offsets
                     let mut all_values = Vec::new();
-                    let mut validity = ::geoparquet_batch_writer::__dep::arrow_array::builder::BooleanBufferBuilder::new(all_list_values.len());
+                    let mut validity = ::parquet_batch_writer::__dep::arrow_array::builder::BooleanBufferBuilder::new(all_list_values.len());
 
                     for list_opt in &all_list_values {
                         match list_opt {
@@ -726,17 +726,17 @@ fn array_ctor(
                         }
                     }
 
-                    let values_array = <#inner_ty as ::geoparquet_batch_writer::__dep::ArrowDataType>::from_iter_values(all_values);
+                    let values_array = <#inner_ty as ::parquet_batch_writer::__dep::ArrowDataType>::from_iter_values(all_values);
                     let validity_buffer = validity.finish();
 
                     // Use try_new instead of new_unchecked
-                    ::geoparquet_batch_writer::__dep::arrow_array::ListArray::try_new(
-                        ::std::sync::Arc::new(::geoparquet_batch_writer::__dep::arrow_schema::Field::new(
+                    ::parquet_batch_writer::__dep::arrow_array::ListArray::try_new(
+                        ::std::sync::Arc::new(::parquet_batch_writer::__dep::arrow_schema::Field::new(
                             "item",
-                            <#inner_ty as ::geoparquet_batch_writer::__dep::ArrowDataType>::data_type(),
+                            <#inner_ty as ::parquet_batch_writer::__dep::ArrowDataType>::data_type(),
                             true
                         )),
-                        ::geoparquet_batch_writer::__dep::arrow_buffer::OffsetBuffer::from_lengths(
+                        ::parquet_batch_writer::__dep::arrow_buffer::OffsetBuffer::from_lengths(
                             all_list_values.iter().map(|opt| {
                                 opt.as_ref().map(|v| v.len()).unwrap_or(0)
                             })
@@ -756,15 +756,15 @@ fn array_ctor(
                         all_values.extend(vec_val.iter().cloned());
                     }
 
-                    let values_array = <#inner_ty as ::geoparquet_batch_writer::__dep::ArrowDataType>::from_iter_values(all_values);
+                    let values_array = <#inner_ty as ::parquet_batch_writer::__dep::ArrowDataType>::from_iter_values(all_values);
 
-                    ::geoparquet_batch_writer::__dep::arrow_array::ListArray::try_new(
-                        ::std::sync::Arc::new(::geoparquet_batch_writer::__dep::arrow_schema::Field::new(
+                    ::parquet_batch_writer::__dep::arrow_array::ListArray::try_new(
+                        ::std::sync::Arc::new(::parquet_batch_writer::__dep::arrow_schema::Field::new(
                             "item",
-                            <#inner_ty as ::geoparquet_batch_writer::__dep::ArrowDataType>::data_type(),
+                            <#inner_ty as ::parquet_batch_writer::__dep::ArrowDataType>::data_type(),
                             true
                         )),
-                        ::geoparquet_batch_writer::__dep::arrow_buffer::OffsetBuffer::from_lengths(
+                        ::parquet_batch_writer::__dep::arrow_buffer::OffsetBuffer::from_lengths(
                             all_vecs.iter().map(|v| v.len())
                         ),
                         values_array,
@@ -774,17 +774,17 @@ fn array_ctor(
             }
         };
         return Ok((
-            quote!(::geoparquet_batch_writer::__dep::arrow_array::ListArray),
+            quote!(::parquet_batch_writer::__dep::arrow_array::ListArray),
             quote! { ::std::sync::Arc::new(#list_construction) },
         ));
     }
 
     // Use the ArrowDataType trait for array construction
-    let arr_ty = quote!(<#ty as ::geoparquet_batch_writer::__dep::ArrowDataType>::Array);
+    let arr_ty = quote!(<#ty as ::parquet_batch_writer::__dep::ArrowDataType>::Array);
     let from = if is_option {
-        quote!(<#ty as ::geoparquet_batch_writer::__dep::ArrowDataType>::from_iter(it))
+        quote!(<#ty as ::parquet_batch_writer::__dep::ArrowDataType>::from_iter(it))
     } else {
-        quote!(<#ty as ::geoparquet_batch_writer::__dep::ArrowDataType>::from_iter_values(it))
+        quote!(<#ty as ::parquet_batch_writer::__dep::ArrowDataType>::from_iter_values(it))
     };
     Ok((arr_ty, from))
 }

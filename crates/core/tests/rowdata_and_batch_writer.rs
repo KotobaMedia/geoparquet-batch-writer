@@ -5,8 +5,8 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use geo_types::{Geometry, LineString, MultiLineString, MultiPoint, MultiPolygon, Point, Polygon};
-use geoparquet_batch_writer::{BatchConfig, ParquetBatchWriter, ParquetRowData};
 use parquet::file::reader::{FileReader, SerializedFileReader};
+use parquet_batch_writer::{BatchConfig, ParquetBatchWriter, ParquetRowData};
 
 #[derive(Clone, ParquetRowData)]
 struct RowPoint {

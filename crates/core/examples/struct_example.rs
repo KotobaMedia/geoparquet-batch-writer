@@ -1,6 +1,6 @@
 use arrow_array::Array;
 use arrow_schema::DataType;
-use geoparquet_batch_writer::{ArrowDataType, ParquetRowStruct};
+use parquet_batch_writer::{ArrowDataType, ParquetRowStruct};
 
 /// Example showing the ParquetRowStruct derive macro in action
 #[derive(ParquetRowStruct, Clone, Default, Debug)]

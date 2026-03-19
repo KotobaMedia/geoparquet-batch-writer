@@ -1,7 +1,7 @@
 use anyhow::{Ok, Result, anyhow};
 use clap::Parser;
 use geo_types::Point;
-use geoparquet_batch_writer::{ParquetBatchWriter, ParquetRowData, ParquetRowStruct};
+use parquet_batch_writer::{ParquetBatchWriter, ParquetRowData, ParquetRowStruct};
 use rand::prelude::*;
 use std::path::{Path, PathBuf};
 

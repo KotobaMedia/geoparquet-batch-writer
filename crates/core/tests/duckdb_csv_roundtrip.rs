@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use anyhow::Result;
 use duckdb::Connection;
 use geo_types::Point;
-use geoparquet_batch_writer::{BatchConfig, ParquetBatchWriter, ParquetRowData};
+use parquet_batch_writer::{BatchConfig, ParquetBatchWriter, ParquetRowData};
 
 #[derive(ParquetRowData)]
 struct RowPoint {
