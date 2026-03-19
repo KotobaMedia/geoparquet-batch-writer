@@ -1,14 +1,14 @@
 use arrow_array::Array;
 use arrow_schema::DataType;
-use geoparquet_batch_writer::{ArrowDataType, GeoParquetRowStruct};
+use parquet_batch_writer::{ArrowDataType, ParquetRowStruct};
 
-/// Example showing the GeoParquetRowStruct derive macro in action
-#[derive(GeoParquetRowStruct, Clone, Default, Debug)]
+/// Example showing the ParquetRowStruct derive macro in action
+#[derive(ParquetRowStruct, Clone, Default, Debug)]
 struct Person {
     id: u64,
     name: String,
     age: Option<u32>,
-    #[geo(name = "email_address")]
+    #[parquet(name = "email_address")]
     email: Option<String>,
 }
 

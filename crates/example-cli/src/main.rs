@@ -1,15 +1,17 @@
 use anyhow::{Ok, Result, anyhow};
 use clap::Parser;
 use geo_types::Point;
-use geoparquet_batch_writer::{GeoParquetBatchWriter, GeoParquetRowData, GeoParquetRowStruct};
+use parquet_batch_writer::{ParquetBatchWriter, ParquetRowData, ParquetRowStruct};
 use rand::prelude::*;
 use std::path::{Path, PathBuf};
 
 #[derive(Parser)]
 #[command(name = "geoparquet-generator")]
-#[command(about = "Example CLI to generate random geospatial data and save it as GeoParquet")]
+#[command(
+    about = "Example CLI to generate random geospatial data and save it as Parquet or GeoParquet automatically"
+)]
 struct Cli {
-    /// Output file path for the GeoParquet file
+    /// Output file path for the Parquet file
     #[arg(short, long, default_value = "output.parquet")]
     output: PathBuf,
 
@@ -53,13 +55,13 @@ fn generate_random_points(count: usize, bbox: (f64, f64, f64, f64)) -> Vec<Point
         .collect()
 }
 
-#[derive(Clone, Default, GeoParquetRowStruct)]
+#[derive(Clone, Default, ParquetRowStruct)]
 struct RowDetail {
     detail: String,
     something: u64,
 }
 
-#[derive(GeoParquetRowData)]
+#[derive(ParquetRowData)]
 struct DataRow {
     id: u64,
     geometry: Point<f64>,
@@ -85,8 +87,8 @@ fn main() -> Result<()> {
         std::fs::create_dir_all(parent)?;
     }
 
-    // Write points to GeoParquet file
-    let mut writer = GeoParquetBatchWriter::new(&cli.output, Default::default())?;
+    // Geometry in the schema enables GeoParquet automatically.
+    let mut writer = ParquetBatchWriter::new(&cli.output, Default::default())?;
     for (i, point) in points.into_iter().enumerate() {
         let row = DataRow {
             id: i as u64,

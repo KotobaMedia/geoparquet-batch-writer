@@ -804,46 +804,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "geoparquet-batch-writer"
-version = "0.1.4"
-dependencies = [
- "anyhow",
- "arrow-array",
- "arrow-buffer",
- "arrow-schema",
- "duckdb",
- "geo-types",
- "geoarrow-array",
- "geoarrow-schema",
- "geoparquet",
- "geoparquet-batch-writer-derive",
- "parquet",
- "tempfile",
- "thiserror 2.0.17",
-]
-
-[[package]]
-name = "geoparquet-batch-writer-derive"
-version = "0.1.4"
-dependencies = [
- "darling",
- "proc-macro2",
- "quote",
- "syn 2.0.106",
-]
-
-[[package]]
-name = "geoparquet-batch-writer-example-cli"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "geo-types",
- "geoparquet-batch-writer",
- "rand",
-]
-
-[[package]]
 name = "getrandom"
 version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1307,6 +1267,46 @@ dependencies = [
  "thrift",
  "twox-hash",
  "zstd",
+]
+
+[[package]]
+name = "parquet-batch-writer"
+version = "0.1.4"
+dependencies = [
+ "anyhow",
+ "arrow-array",
+ "arrow-buffer",
+ "arrow-schema",
+ "duckdb",
+ "geo-types",
+ "geoarrow-array",
+ "geoarrow-schema",
+ "geoparquet",
+ "parquet",
+ "parquet-batch-writer-derive",
+ "tempfile",
+ "thiserror 2.0.17",
+]
+
+[[package]]
+name = "parquet-batch-writer-derive"
+version = "0.1.4"
+dependencies = [
+ "darling",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.106",
+]
+
+[[package]]
+name = "parquet-batch-writer-example-cli"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "geo-types",
+ "parquet-batch-writer",
+ "rand",
 ]
 
 [[package]]

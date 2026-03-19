@@ -1,75 +1,85 @@
-use std::fs;
+#![cfg(feature = "geo")]
+
+use std::fs::{self, File};
 use std::path::PathBuf;
 
 use anyhow::Result;
 use geo_types::{Geometry, LineString, MultiLineString, MultiPoint, MultiPolygon, Point, Polygon};
-use geoparquet_batch_writer::{BatchConfig, GeoParquetBatchWriter, GeoParquetRowData};
+use parquet::file::reader::{FileReader, SerializedFileReader};
+use parquet_batch_writer::{BatchConfig, ParquetBatchWriter, ParquetRowData};
 
-#[derive(Clone, GeoParquetRowData)]
+#[derive(Clone, ParquetRowData)]
 struct RowPoint {
     id: u64,
     name: String,
-    #[geo(geometry)]
+    #[parquet(geometry)]
     geom: Point<f64>,
 }
 
-#[derive(Clone, GeoParquetRowData)]
+#[derive(Clone, ParquetRowData)]
 struct RowOptional {
     id: i32,
     flag: Option<bool>,
     note: Option<String>,
-    #[geo(geometry)]
+    #[parquet(geometry)]
     geom: Option<Point<f64>>,
 }
 
-#[derive(Clone, GeoParquetRowData)]
+#[derive(Clone, ParquetRowData)]
 struct RowLineString {
     id: u32,
-    #[geo(geometry)]
+    #[parquet(geometry)]
     line: LineString<f64>,
 }
 
-#[derive(Clone, GeoParquetRowData)]
+#[derive(Clone, ParquetRowData)]
 struct RowPolygon {
-    #[geo(geometry)]
+    #[parquet(geometry)]
     poly: Polygon<f64>,
 }
 
-#[derive(Clone, GeoParquetRowData)]
+#[derive(Clone, ParquetRowData)]
 struct RowMultiPoint {
     label: String,
-    #[geo(geometry)]
+    #[parquet(geometry)]
     mpt: MultiPoint<f64>,
 }
 
-#[derive(Clone, GeoParquetRowData)]
+#[derive(Clone, ParquetRowData)]
 struct RowMultiLineString {
     id: u64,
-    #[geo(geometry)]
+    #[parquet(geometry)]
     mls: MultiLineString<f64>,
 }
 
-#[derive(Clone, GeoParquetRowData)]
+#[derive(Clone, ParquetRowData)]
 struct RowMultiPolygon {
-    #[geo(geometry)]
+    #[parquet(geometry)]
     mpoly: MultiPolygon<f64>,
 }
 
-#[derive(Clone, GeoParquetRowData)]
+#[derive(Clone, ParquetRowData)]
 struct RowGeometryEnum {
     id: i64,
-    #[geo(geometry)]
+    #[parquet(geometry)]
     geom: Geometry<f64>,
 }
 
-#[derive(Clone, GeoParquetRowData)]
+#[derive(Clone, ParquetRowData)]
 struct RowWithVecs {
     id: u32,
     tags: Vec<String>,
     scores: Vec<f64>,
     counts: Option<Vec<i32>>,
-    #[geo(geometry)]
+    #[parquet(geometry)]
     geom: Point<f64>,
+}
+
+#[derive(Clone, ParquetRowData)]
+struct RowTwoPoints {
+    id: u64,
+    start: Point<f64>,
+    end: Point<f64>,
 }
 
 struct TmpPath {
@@ -82,6 +92,15 @@ fn tmp_file(name: &str) -> TmpPath {
     let mut p = dir.path().to_path_buf();
     p.push(format!("{name}.parquet"));
     TmpPath { _dir: dir, path: p }
+}
+
+fn parquet_metadata_contains(path: &PathBuf, key: &str) -> Result<bool> {
+    let reader = SerializedFileReader::new(File::open(path)?)?;
+    let file_metadata = reader.metadata().file_metadata();
+    let Some(kv_metadata) = file_metadata.key_value_metadata() else {
+        return Ok(false);
+    };
+    Ok(kv_metadata.iter().any(|kv| kv.key == key))
 }
 
 #[test]
@@ -198,9 +217,23 @@ fn different_geometries_basic_arrays() -> Result<()> {
 }
 
 #[test]
+fn multiple_geometry_fields_are_supported() -> Result<()> {
+    let rows = vec![RowTwoPoints {
+        id: 1,
+        start: Point::new(0.0, 0.0),
+        end: Point::new(1.0, 1.0),
+    }];
+    let schema = RowTwoPoints::schema();
+    assert_eq!(schema.fields().len(), 3);
+    let arrays = RowTwoPoints::to_arrays(&rows)?;
+    assert_eq!(arrays.len(), 3);
+    Ok(())
+}
+
+#[test]
 fn batch_writer_writes_batches_by_row_count() -> Result<()> {
     let out = tmp_file("points_batch");
-    let mut writer: GeoParquetBatchWriter<RowPoint> = GeoParquetBatchWriter::new(
+    let mut writer: ParquetBatchWriter<RowPoint> = ParquetBatchWriter::new(
         &out.path,
         BatchConfig {
             max_rows_per_batch: 3,
@@ -218,8 +251,9 @@ fn batch_writer_writes_batches_by_row_count() -> Result<()> {
     writer.finish()?;
 
     // Parquet file created and non-empty
-    let meta = fs::metadata(out.path)?;
+    let meta = fs::metadata(&out.path)?;
     assert!(meta.len() > 0);
+    assert!(parquet_metadata_contains(&out.path, "geo")?);
     Ok(())
 }
 
@@ -227,7 +261,7 @@ fn batch_writer_writes_batches_by_row_count() -> Result<()> {
 fn batch_writer_handles_varied_structs() -> Result<()> {
     // lines
     let out1 = tmp_file("lines");
-    let mut w1: GeoParquetBatchWriter<RowLineString> = GeoParquetBatchWriter::new(
+    let mut w1: ParquetBatchWriter<RowLineString> = ParquetBatchWriter::new(
         out1.path.to_str().unwrap(),
         BatchConfig {
             max_rows_per_batch: 2,
@@ -245,8 +279,8 @@ fn batch_writer_handles_varied_structs() -> Result<()> {
 
     // polygons
     let out2 = tmp_file("polys");
-    let mut w2: GeoParquetBatchWriter<RowPolygon> =
-        GeoParquetBatchWriter::new(out2.path.to_str().unwrap(), BatchConfig::default())?;
+    let mut w2: ParquetBatchWriter<RowPolygon> =
+        ParquetBatchWriter::new(out2.path.to_str().unwrap(), BatchConfig::default())?;
     w2.add_row(RowPolygon {
         poly: Polygon::new(
             LineString::from(vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 0.0)]),
@@ -257,7 +291,7 @@ fn batch_writer_handles_varied_structs() -> Result<()> {
 
     // geometry enum
     let out3 = tmp_file("geometry_enum");
-    let mut w3: GeoParquetBatchWriter<RowGeometryEnum> = GeoParquetBatchWriter::new(
+    let mut w3: ParquetBatchWriter<RowGeometryEnum> = ParquetBatchWriter::new(
         out3.path.to_str().unwrap(),
         BatchConfig {
             max_rows_per_batch: 1,
@@ -277,5 +311,21 @@ fn batch_writer_handles_varied_structs() -> Result<()> {
         let meta = fs::metadata(p)?;
         assert!(meta.len() > 0);
     }
+    Ok(())
+}
+
+#[test]
+fn geometry_schema_automatically_writes_geoparquet_metadata() -> Result<()> {
+    let out = tmp_file("two_points");
+    let mut writer: ParquetBatchWriter<RowTwoPoints> =
+        ParquetBatchWriter::new(&out.path, BatchConfig::default())?;
+    writer.add_row(RowTwoPoints {
+        id: 1,
+        start: Point::new(0.0, 0.0),
+        end: Point::new(1.0, 1.0),
+    })?;
+    writer.finish()?;
+
+    assert!(parquet_metadata_contains(&out.path, "geo")?);
     Ok(())
 }

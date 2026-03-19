@@ -1,16 +1,18 @@
+#![cfg(feature = "geo")]
+
 use std::fs;
 use std::path::PathBuf;
 
 use anyhow::Result;
 use duckdb::Connection;
 use geo_types::Point;
-use geoparquet_batch_writer::{BatchConfig, GeoParquetBatchWriter, GeoParquetRowData};
+use parquet_batch_writer::{BatchConfig, ParquetBatchWriter, ParquetRowData};
 
-#[derive(GeoParquetRowData)]
+#[derive(ParquetRowData)]
 struct RowPoint {
     id: u64,
     name: String,
-    #[geo(geometry)]
+    #[parquet(geometry)]
     geom: Point<f64>,
 }
 
@@ -56,7 +58,7 @@ fn write_parquet_export_csv_with_duckdb_and_compare() -> Result<()> {
 
     // Write parquet
     let tmp = tmp_files("duckdb_roundtrip");
-    let mut writer: GeoParquetBatchWriter<RowPoint> = GeoParquetBatchWriter::new(
+    let mut writer: ParquetBatchWriter<RowPoint> = ParquetBatchWriter::new(
         &tmp.parquet,
         BatchConfig {
             max_rows_per_batch: 2,

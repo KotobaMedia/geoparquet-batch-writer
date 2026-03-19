@@ -1,13 +1,14 @@
 use thiserror::Error;
 
-/// Error types for the geoparquet-batch-writer library
+/// Error types for the parquet batch writer library
 #[derive(Error, Debug)]
-pub enum GeoParquetBatchWriterError {
+pub enum ParquetBatchWriterError {
     /// Error from the Arrow library
     #[error("Arrow error: {0}")]
     Arrow(#[from] arrow_schema::ArrowError),
 
     /// Error from the GeoArrow library
+    #[cfg(feature = "geo")]
     #[error("GeoArrow error: {0}")]
     GeoArrow(#[from] geoarrow_schema::error::GeoArrowError),
 
@@ -24,5 +25,5 @@ pub enum GeoParquetBatchWriterError {
     BatchWriter(String),
 }
 
-/// Result type for the geoparquet-batch-writer library
-pub type Result<T> = std::result::Result<T, GeoParquetBatchWriterError>;
+/// Result type for the parquet batch writer library
+pub type Result<T> = std::result::Result<T, ParquetBatchWriterError>;

@@ -1,19 +1,21 @@
+#![cfg(feature = "geo")]
+
 use geo_types::Point;
-use geoparquet_batch_writer::{GeoParquetBatchWriter, GeoParquetRowData};
+use parquet_batch_writer::{ParquetBatchWriter, ParquetRowData};
 
 // This struct intentionally does NOT derive Clone
 // to demonstrate that Clone is no longer required
-#[derive(GeoParquetRowData)]
+#[derive(ParquetRowData)]
 struct NonCloneableRow {
     id: u64,
-    #[geo(geometry)]
+    #[parquet(geometry)]
     point: Point<f64>,
 }
 
 #[test]
 fn test_no_clone_requirement() {
     let mut writer =
-        GeoParquetBatchWriter::new("/tmp/test_no_clone.parquet", Default::default()).unwrap();
+        ParquetBatchWriter::new("/tmp/test_no_clone.parquet", Default::default()).unwrap();
 
     // Create a row - this works without Clone
     let row = NonCloneableRow {
